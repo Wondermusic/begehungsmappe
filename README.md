@@ -1,4 +1,4 @@
-# Begehungsmappe 1.0.0
+# Begehungsmappe 1.1.0
 
 Offline-App für Arbeitssicherheits- und Brandschutzbegehungen auf dem Android-Tablet.
 
@@ -33,12 +33,13 @@ Die Daten verlassen das Tablet dabei nicht. Der Server liefert nur die App-Datei
 ## Bedienung in Kürze
 
 - **Ordner**: frei benennbar, z. B. ein Ordner pro Kunde. Darin beliebig viele Begehungen.
-- **Einfügemarke** (grüne Linie): Dort landet alles Neue. Zwischen zwei Blöcken tippen, um sie zu versetzen. Wer in ein Textfeld oder eine Handschriftfläche tippt, setzt sie automatisch dahinter.
-- **Foto**: öffnet die Kamera. Das Foto kommt an die Einfügemarke, direkt danach wird eine leere Notiz angelegt (einstellbar unter „Nach Foto“: Handschrift, Text oder nichts).
+- **Foto-Position**: Ein Foto und seine Notizen stehen in einem gemeinsamen Kasten, die Notizen direkt unter dem Bild. Nach dem Foto wird dort automatisch eine leere Notiz angelegt (einstellbar unter „Nach Foto“: Handschrift, Text oder nichts). Solange der Foto-Kasten grün umrandet ist, landen auch „Handschrift“ und „Text“ aus der Werkzeugleiste in diesem Kasten. Im Kasten selbst gibt es dafür ebenfalls zwei Knöpfe.
+- **Einfügemarke** (grüne Linie zwischen den Kästen): Dort landen neue Fotos und freie Notizen ohne Foto. Zwischen zwei Kästen tippen, um sie zu versetzen. Wer in ein Foto, eine Notiz oder eine Schreibfläche tippt, macht diesen Kasten aktiv.
+- **Foto**: öffnet die Kamera. Ein neues Foto kommt immer als eigener Kasten hinter den aktiven Kasten bzw. an die Einfügemarke.
 - **Handschrift**: Der S-Pen schreibt, der Finger scrollt. Aufliegender Handballen wird ignoriert, solange der Stift schreibt. Mit „Finger scrollt / Finger malt“ lässt sich umschalten. Die Fläche wächst beim Schreiben nach unten mit, „Mehr Platz“ verlängert sie von Hand.
 - **Text**: normales Textfeld für die Bildschirmtastatur.
-- **Mangel?**: Antippen schaltet durch hoch / mittel / gering / kein Mangel. Markierte Blöcke erscheinen im Bericht in der Mängelübersicht.
-- **Bericht**: Übersicht mit Kopfdaten, Mängelliste und dem ganzen Protokoll. „Drucken / PDF“ öffnet den Android-Druckdialog, dort „Als PDF speichern“ wählen.
+- **Mangel?**: Antippen schaltet durch hoch / mittel / gering / kein Mangel. Die Priorität gilt für die ganze Position (Foto samt Notizen).
+- **Bericht**: Kopfdaten, Maßnahmenliste und das ganze Protokoll. Die Maßnahmenliste enthält jede Foto-Position (Foto + zugehörige Feststellung) und jede als Mangel markierte freie Notiz. „Drucken / PDF“ öffnet den Android-Druckdialog, dort „Als PDF speichern“ wählen.
 
 ## Datensicherung
 
@@ -54,7 +55,11 @@ Fotos werden beim Aufnehmen auf höchstens 1600 Pixel verkleinert (typisch 200�
 
 Neue Dateien auf GitHub hochladen. In `sw.js` steht `CACHE_VERSION`; die muss bei jeder neuen Version erhöht werden. Das Tablet lädt das Update beim nächsten Öffnen mit Internet, aktiv wird es beim übernächsten Start.
 
-## Geplant für Version 2
+## Begehungen aus Version 1.0.0
 
+Beim ersten Öffnen in 1.1.0 wird die Notiz, die direkt hinter einem Foto steht, in dessen Kasten verschoben. Weitere freie Notizen bleiben, wo sie sind, und lassen sich bei Bedarf von Hand löschen und im Foto-Kasten neu anlegen.
+
+## Geplant
+
+- Export als Word-Datei auf Basis des eigenen Vordrucks (Maßnahmen werden danach am PC nachgetragen)
 - Handschrift per KI in Text umwandeln und daraus einen Bericht formulieren
-- Ausgabe auf ein definiertes Formblatt und Versand per Mail

@@ -14,7 +14,7 @@
 ==============================================================================
   Begehungsmappe – Offline-App für Arbeitssicherheits- und Brandschutzbegehungen
 ==============================================================================
-  Version:   1.0.0
+  Version:   1.1.0
   Datum:     2026-10-28
   Plattform: Android-Tablet (Chrome), als PWA installierbar, komplett offline
 
@@ -22,9 +22,10 @@
   -----
   Erfassung von Begehungen vor Ort: Ordner frei benennbar (z. B. pro Kunde),
   darin beliebig viele Begehungen. Jede Begehung ist ein fortlaufendes
-  Protokoll aus Blöcken: Fotos, Handschrift (S-Pen) und getipptem Text.
-  Fotos landen an der Einfügemarke im Fluss, die zugehörige Notiz folgt
-  direkt danach.
+  Protokoll aus Positionen. Eine Foto-Position ist ein Kasten aus Foto
+  und den zugehörigen Notizen (Handschrift oder Text) direkt darunter.
+  Daneben gibt es freie Notizen ohne Foto. Neue Positionen landen an der
+  Einfügemarke im Fluss.
 
   FUNKTIONEN
   ----------
@@ -37,9 +38,15 @@
   - Text-Blöcke für Bildschirmtastatur
   - Fotos per Kamera oder aus der Galerie, automatisch verkleinert
     (max. 1600 px, JPEG) und im Gerät gespeichert
-  - Einfügemarke zwischen beliebigen Blöcken, Blöcke verschieben/löschen
-  - Mängel-Markierung je Block (Priorität hoch / mittel / gering)
-  - Berichtsansicht mit Mängelübersicht, Drucken / als PDF speichern
+  - Foto-Position: Notizen zum Foto stehen im selben Kasten direkt unter
+    dem Bild; nach dem Foto angelegte Notizen (auch über die Werkzeug-
+    leiste) werden automatisch diesem Foto zugeordnet, bis eine andere
+    Stelle angetippt wird
+  - Einfügemarke zwischen beliebigen Positionen, Positionen und Notizen
+    verschieben/löschen
+  - Mängel-Markierung je Position (Priorität hoch / mittel / gering)
+  - Berichtsansicht mit Maßnahmenliste (Pos., Foto, Feststellung,
+    Priorität) und Protokoll, Drucken / als PDF speichern
   - Datensicherung: Export/Import als JSON (inkl. Fotos), Teilen über
     das Android-Teilen-Menü
   - Speicherung in IndexedDB, Bitte um dauerhaften Speicher
@@ -50,11 +57,20 @@
   1.0.0 (2026-10-28)  Erste Version: Ordner, Begehungen, Editor mit Foto/
                       Handschrift/Text im Fluss, Mängel-Priorität, Bericht,
                       Sicherung, Offline-Betrieb über Service Worker.
+  1.1.0 (2026-10-28)  Foto und zugehörige Notizen bilden eine gemeinsame
+                      Position in einem Kasten (Notizen direkt unter dem
+                      Bild). Werkzeugleiste fügt nach einem Foto Notizen
+                      in dessen Kasten ein. Mängelübersicht ersetzt durch
+                      Maßnahmenliste mit Foto und Feststellung je Position.
+                      Datenmodell Schema 2; Begehungen aus 1.0.0 werden
+                      beim Öffnen übernommen (die Notiz direkt hinter
+                      einem Foto wird diesem Foto zugeordnet).
 
-  GEPLANT (Version 2)
-  -------------------
+  GEPLANT
+  -------
+  - Export als Word-Datei auf Basis des vom Nutzer gelieferten Vordrucks
+    (Maßnahmen werden danach am PC nachgetragen)
   - KI-Auswertung der Notizen (Handschrift → Text → Bericht)
-  - Ausgabe auf definiertes Formblatt, Versand per Mail
 ==============================================================================
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -266,7 +282,19 @@ details.backup .body .inline-form { align-items: center; }
 }
 .ink-wrap canvas { display: block; touch-action: none; }
 .ink-foot { display: flex; justify-content: center; padding: 6px; border-top: 1px dashed var(--line); background: var(--surface-2); }
-.blk.active-ink { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow); }
+.blk.active-ink, .note.active-ink { box-shadow: inset 0 0 0 2px var(--accent); }
+.blk.target { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
+
+/* Foto-Position: Notizen im selben Kasten unter dem Bild */
+.notes { display: flex; flex-direction: column; border-top: 3px solid var(--accent); }
+.note { border-bottom: 1px dashed var(--line); }
+.note-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 12px; font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 600; color: var(--muted); }
+.note-head svg { width: 16px; height: 16px; }
+.note-head .spacer { flex: 1; }
+.note-add { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; background: var(--surface-2); font-size: .9rem; color: var(--muted); }
+.note-add .lbl { flex: 1 1 200px; }
+.blk.target .note-add { background: var(--accent-soft); color: var(--ink); }
+.blk.target .note-add .lbl::after { content: " · neue Notizen landen hier"; font-weight: 600; color: var(--accent); }
 
 /* Werkzeugleiste */
 .dock {
@@ -316,6 +344,15 @@ details.backup .body .inline-form { align-items: center; }
 .rep-blk-head { display: flex; gap: 10px; align-items: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rep-blk img { max-width: 100%; border: 1px solid var(--line); border-radius: 3px; }
 .rep-blk .ink-img { background: #FCFDFB; }
+.rep-pos { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; break-inside: avoid; }
+.rep-pos > img { display: block; width: 100%; border: 0; border-radius: 0; }
+.rep-pos-notes { border-top: 3px solid var(--accent); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.rep-pos-notes img { border: 0; }
+.rep-sum td.thumb { width: 150px; }
+.rep-sum td.thumb img { display: block; width: 140px; max-width: 100%; border-radius: 2px; }
+.rep-sum td .fest { display: flex; flex-direction: column; gap: 6px; }
+.rep-sum td .fest img { max-width: 320px; width: 100%; background: #FCFDFB; border: 1px solid var(--line); }
+.rep-sum td .fest span { white-space: pre-wrap; overflow-wrap: anywhere; }
 .rep-blk p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rep-foot { border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); font-size: .82rem; }
 
@@ -350,7 +387,8 @@ details.backup .body .inline-form { align-items: center; }
 /* ======================================================================
    Konfiguration
    ====================================================================== */
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
+const SCHEMA = 2;                 // 2 = Fotos tragen ihre Notizen in b.notes
 const DB_NAME = 'begehungsmappe';
 const DB_VER = 1;
 const INK_LOGICAL_WIDTH = 1000;   // Handschrift wird in festen logischen Einheiten gespeichert (drehsicher)
@@ -472,7 +510,7 @@ async function requestPersist() {
    ====================================================================== */
 const S = {
   view: 'home', folderId: null, inspId: null,
-  insp: null, insertAt: null, dirty: false,
+  insp: null, insertAt: null, target: null, dirty: false,
   pen: store.get('pen', { color: PEN_COLORS[0][0], width: 3, tool: 'pen' }),
   fingerDraws: store.get('fingerDraws', false),
   autoNote: store.get('autoNote', 'ink'),
@@ -629,8 +667,39 @@ async function createDemo() {
 /* ======================================================================
    Ordneransicht: Begehungen
    ====================================================================== */
+/* Sucht einen Block auf oberster Ebene oder als Notiz in einem Foto */
+function findBlock(id, insp = S.insp) {
+  const top = insp.blocks;
+  for (let i = 0; i < top.length; i++) {
+    const b = top[i];
+    if (b.id === id) return { b, list: top, idx: i, parent: null };
+    if (b.notes) { const j = b.notes.findIndex(n => n.id === id); if (j >= 0) return { b: b.notes[j], list: b.notes, idx: j, parent: b }; }
+  }
+  return null;
+}
+/* Übernahme von Daten aus 1.0.0: Notiz direkt hinter einem Foto wandert in dessen Kasten */
+function normalize(insp) {
+  if (!insp || (insp.schema || 1) >= SCHEMA) return insp;
+  const src = insp.blocks || [], out = [];
+  for (let i = 0; i < src.length; i++) {
+    const b = src[i];
+    if (b.type === 'photo') {
+      b.notes = b.notes || [];
+      const nx = src[i + 1];
+      if (!b.notes.length && nx && (nx.type === 'ink' || nx.type === 'text')) {
+        if (nx.prio && !b.prio) b.prio = nx.prio;
+        delete nx.prio; b.notes.push(nx); i++;
+      }
+    }
+    out.push(b);
+  }
+  insp.blocks = out; insp.schema = SCHEMA;
+  return insp;
+}
+const countNotes = (insp) => insp.blocks.reduce((n, b) => n + (b.type === 'photo' ? (b.notes || []).length : 1), 0);
+
 function newInspection(folderId, o = {}) {
-  return { id: uid(), folderId, title: o.title || 'Begehung', date: o.date || todayISO(), art: o.art || 'kombi', objekt: o.objekt || '', teilnehmer: o.teilnehmer || '', bemerkung: o.bemerkung || '', blocks: [], created: Date.now(), updated: Date.now() };
+  return { id: uid(), schema: SCHEMA, folderId, title: o.title || 'Begehung', date: o.date || todayISO(), art: o.art || 'kombi', objekt: o.objekt || '', teilnehmer: o.teilnehmer || '', bemerkung: o.bemerkung || '', blocks: [], created: Date.now(), updated: Date.now() };
 }
 const signHTML = (art, sm = false) => `<span class="sign ${art}${sm ? ' sm' : ''}" title="${esc(ART[art]?.label || '')}">${art === 'kombi' ? '' : esc(ART[art]?.short || '')}</span>`;
 
@@ -640,8 +709,9 @@ async function renderFolder() {
   const list = (await DB.byFolder(f.id)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created - a.created);
 
   const rows = list.map(i => {
+    normalize(i);
     const nPh = i.blocks.filter(b => b.type === 'photo').length;
-    const nNo = i.blocks.length - nPh;
+    const nNo = countNotes(i);
     const nM = i.blocks.filter(b => b.prio).length;
     const confirming = S.confirmKey === 'i:' + i.id;
     return `<div class="row">
@@ -690,9 +760,10 @@ async function renderFolder() {
    ====================================================================== */
 async function renderEditor() {
   if (!S.insp || S.insp.id !== S.inspId) {
-    S.insp = await DB.get('inspections', S.inspId);
-    S.insertAt = null; S.dirty = false;
+    S.insp = normalize(await DB.get('inspections', S.inspId));
+    S.insertAt = null; S.target = null; S.dirty = false;
   }
+  if (S.target && !findBlock(S.target)) S.target = null;
   const insp = S.insp;
   if (!insp) { nav('home', {}, false); return; }
   const folder = await DB.get('folders', insp.folderId);
@@ -725,7 +796,7 @@ async function renderEditor() {
         <div class="field wide"><label for="mBem">Bemerkung</label><textarea class="input" id="mBem" data-meta="bemerkung">${esc(insp.bemerkung)}</textarea></div>
       </div>
     </section>` : ''}
-    ${n === 0 ? `<div class="empty"><strong>Noch nichts erfasst</strong><span>Mach ein Foto oder beginne eine Notiz über die Leiste unten. Fotos landen immer an der grünen Einfügemarke, die Notiz dazu direkt dahinter.</span></div>` : ''}
+    ${n === 0 ? `<div class="empty"><strong>Noch nichts erfasst</strong><span>Mach ein Foto oder beginne eine Notiz über die Leiste unten. Fotos landen an der grünen Einfügemarke. Die Notiz zum Foto steht im selben Kasten direkt unter dem Bild.</span></div>` : ''}
     ${body}
   </main>
   ${dockHTML()}`;
@@ -735,13 +806,12 @@ async function renderEditor() {
   // Textfelder anpassen
   $$('.txt').forEach(autoGrow);
   // Handschrift-Flächen
-  $$('.blk[data-type="ink"]').forEach(el => {
-    const b = insp.blocks.find(x => x.id === el.dataset.id);
-    const pad = new InkPad(b, $('.ink-wrap', el), el);
-    pads.push(pad);
+  $$('[data-ink]').forEach(w => {
+    const f = findBlock(w.dataset.ink); if (!f) return;
+    pads.push(new InkPad(f.b, w, w.closest('.note') || w.closest('.blk')));
   });
   if (S.lastAdded) {
-    const el = $(`.blk[data-id="${S.lastAdded}"]`);
+    const el = $(`.note[data-id="${S.lastAdded}"]`) || $(`.blk[data-id="${S.lastAdded}"]`);
     if (el) {
       el.classList.add('just-added');
       requestAnimationFrame(() => {
@@ -756,26 +826,46 @@ async function renderEditor() {
 }
 
 function gapHTML(i, at, n) {
-  const on = i === at;
+  const on = i === at && !S.target;
   return `<button class="gap${on ? ' on' : ''}" data-act="setInsert" data-at="${i}" aria-label="Einfügemarke hierher setzen">${on ? (i === n ? 'Einfügemarke · Ende' : 'Einfügemarke') : 'Hier einfügen'}</button>`;
+}
+
+function noteBodyHTML(n, label) {
+  if (n.type === 'text') return `<textarea class="txt" data-id="${n.id}" placeholder="Notiz tippen …" aria-label="${esc(label)}">${esc(n.text)}</textarea>`;
+  return `<div class="ink-wrap" data-ink="${n.id}"><canvas aria-label="${esc(label)}"></canvas></div><div class="ink-foot"><button class="btn ghost sm" data-act="inkMore" data-id="${n.id}">${ic('more')}Mehr Platz</button></div>`;
+}
+function ctrlHTML(id, first, last, what, askText = 'Löschen?') {
+  if (S.confirmKey === 'b:' + id) return `<span class="confirm">${askText}</span><button class="btn danger sm" data-act="delBlock" data-id="${id}">Ja</button><button class="btn sm" data-act="cancel">Nein</button>`;
+  return `<button class="btn icon sm ghost" data-act="moveUp" data-id="${id}" aria-label="${what} nach oben"${first ? ' disabled' : ''}>${ic('up')}</button>
+    <button class="btn icon sm ghost" data-act="moveDown" data-id="${id}" aria-label="${what} nach unten"${last ? ' disabled' : ''}>${ic('down')}</button>
+    <button class="btn icon sm ghost" data-act="askDelBlock" data-id="${id}" aria-label="${what} löschen">${ic('trash')}</button>`;
 }
 
 function blockHTML(b, i) {
   const typeLabel = { photo: ['img', 'Foto'], ink: ['pen', 'Handschrift'], text: ['text', 'Text'] }[b.type];
-  const confirming = S.confirmKey === 'b:' + b.id;
+  const last = i === S.insp.blocks.length - 1;
   let inner = '';
-  if (b.type === 'photo') inner = `<div class="photo-body"><img alt="Foto ${i + 1}" data-media="${b.mediaId}" hidden><span class="photo-missing">Foto wird geladen …</span></div>`;
-  else if (b.type === 'text') inner = `<textarea class="txt" data-id="${b.id}" placeholder="Notiz tippen …" aria-label="Notiz ${i + 1}">${esc(b.text)}</textarea>`;
-  else inner = `<div class="ink-wrap"><canvas aria-label="Handschrift ${i + 1}"></canvas></div><div class="ink-foot"><button class="btn ghost sm" data-act="inkMore" data-id="${b.id}">${ic('more')}Mehr Platz</button></div>`;
-  return `<article class="blk prio-${b.prio || 'none'}" data-id="${b.id}" data-type="${b.type}">
+  if (b.type === 'photo') {
+    const notes = b.notes || [];
+    inner = `<div class="photo-body"><img alt="Foto ${i + 1}" data-media="${b.mediaId}" hidden><span class="photo-missing">Foto wird geladen …</span></div>
+    <div class="notes">
+      ${notes.map((n, j) => `<div class="note" data-id="${n.id}" data-type="${n.type}">
+        <div class="note-head">${ic(n.type === 'ink' ? 'pen' : 'text')}<span>Notiz zu #${i + 1}${notes.length > 1 ? '.' + (j + 1) : ''} · ${n.type === 'ink' ? 'Handschrift' : 'Text'}</span><span class="spacer"></span>
+          ${ctrlHTML(n.id, j === 0, j === notes.length - 1, 'Notiz')}</div>
+        ${noteBodyHTML(n, `Notiz zu Foto ${i + 1}`)}
+      </div>`).join('')}
+      <div class="note-add"><span class="lbl">${notes.length ? 'Weitere Notiz zu diesem Foto' : 'Notiz zu diesem Foto'}</span>
+        <button class="btn sm" data-act="noteInk" data-id="${b.id}">${ic('pen')}Handschrift</button>
+        <button class="btn sm" data-act="noteText" data-id="${b.id}">${ic('text')}Text</button></div>
+    </div>`;
+  } else inner = noteBodyHTML(b, `Notiz ${i + 1}`);
+  const nNotes = (b.notes || []).length;
+  return `<article class="blk prio-${b.prio || 'none'}${S.target === b.id ? ' target' : ''}" data-id="${b.id}" data-type="${b.type}">
     <div class="blk-head">
       <span class="blk-type">${ic(typeLabel[0])}<span class="blk-num">#${i + 1}</span>${typeLabel[1]}</span>
       <button class="chip chip-btn ${b.prio || ''}" data-act="cyclePrio" data-id="${b.id}" title="Antippen zum Wechseln">${PRIO[b.prio || '']}</button>
       <span class="spacer"></span>
-      ${confirming ? `<span class="confirm">Löschen?</span><button class="btn danger sm" data-act="delBlock" data-id="${b.id}">Ja</button><button class="btn sm" data-act="cancel">Nein</button>`
-        : `<button class="btn icon sm ghost" data-act="moveUp" data-id="${b.id}" aria-label="Nach oben"${i === 0 ? ' disabled' : ''}>${ic('up')}</button>
-           <button class="btn icon sm ghost" data-act="moveDown" data-id="${b.id}" aria-label="Nach unten"${i === S.insp.blocks.length - 1 ? ' disabled' : ''}>${ic('down')}</button>
-           <button class="btn icon sm ghost" data-act="askDelBlock" data-id="${b.id}" aria-label="Block löschen">${ic('trash')}</button>`}
+      ${ctrlHTML(b.id, i === 0, last, b.type === 'photo' ? 'Position' : 'Notiz', b.type === 'photo' && nNotes ? `Foto samt ${nNotes} Notiz${nNotes === 1 ? '' : 'en'} löschen?` : 'Löschen?')}
     </div>
     ${inner}
   </article>`;
@@ -827,27 +917,44 @@ function insertBlock(b) {
   const at = (S.insertAt == null || S.insertAt > blocks.length) ? blocks.length : S.insertAt;
   blocks.splice(at, 0, b);
   S.insertAt = at + 1;
+  S.target = b.type === 'photo' ? b.id : null;
   touch();
   return b;
 }
-const newInk = () => ({ id: uid(), type: 'ink', strokes: [], h: INK_DEFAULT_HEIGHT, prio: '' });
-const newText = () => ({ id: uid(), type: 'text', text: '', prio: '' });
+const newInk = (inPhoto) => inPhoto ? { id: uid(), type: 'ink', strokes: [], h: INK_DEFAULT_HEIGHT } : { id: uid(), type: 'ink', strokes: [], h: INK_DEFAULT_HEIGHT, prio: '' };
+const newText = (inPhoto) => inPhoto ? { id: uid(), type: 'text', text: '' } : { id: uid(), type: 'text', text: '', prio: '' };
+
+/* Neue Notiz: in den Kasten des aktiven Fotos, sonst als freie Notiz an die Einfügemarke */
+function addNote(type, photoId = S.target) {
+  const f = photoId ? findBlock(photoId) : null;
+  let n;
+  if (f && f.b.type === 'photo') {
+    n = type === 'ink' ? newInk(true) : newText(true);
+    (f.b.notes = f.b.notes || []).push(n);
+    S.target = f.b.id; S.insertAt = f.idx + 1;
+    touch();
+  } else {
+    n = insertBlock(type === 'ink' ? newInk(false) : newText(false));
+  }
+  return n;
+}
 
 async function addPhotos(files) {
   if (!files || !files.length) return;
   toast(files.length > 1 ? `${files.length} Fotos werden verarbeitet …` : 'Foto wird verarbeitet …');
-  let note = null;
+  let last = null;
   for (const file of files) {
     try {
       const { blob, w, h } = await compressImage(file);
       const m = { id: uid(), blob, w, h, type: blob.type || 'image/jpeg', created: Date.now() };
       await DB.put('media', m);
-      insertBlock({ id: uid(), type: 'photo', mediaId: m.id, prio: '' });
+      const ph = insertBlock({ id: uid(), type: 'photo', mediaId: m.id, prio: '', notes: [] });
+      last = ph;
+      // Notiz direkt in den Kasten dieses Fotos
+      if (S.autoNote === 'ink' || S.autoNote === 'text') last = addNote(S.autoNote, ph.id);
     } catch (e) { toast('Foto konnte nicht übernommen werden: ' + e.message, 5000); }
   }
-  if (S.autoNote === 'ink') note = insertBlock(newInk());
-  else if (S.autoNote === 'text') note = insertBlock(newText());
-  S.lastAdded = note ? note.id : S.insp.blocks[S.insertAt - 1]?.id;
+  S.lastAdded = last ? last.id : null;
   await flushSave();
   requestPersist();
   render();
@@ -998,25 +1105,41 @@ function inkToDataURL(b, px = 900) {
    Bericht
    ====================================================================== */
 async function renderReport() {
-  const insp = (S.insp && S.insp.id === S.inspId) ? S.insp : await DB.get('inspections', S.inspId);
+  const insp = normalize((S.insp && S.insp.id === S.inspId) ? S.insp : await DB.get('inspections', S.inspId));
   if (!insp) { nav('home', {}, false); return; }
   const folder = await DB.get('folders', insp.folderId);
-  const mangel = insp.blocks.map((b, i) => ({ b, i })).filter(x => x.b.prio);
-  const order = { hoch: 0, mittel: 1, gering: 2 };
-  mangel.sort((a, b) => order[a.b.prio] - order[b.b.prio] || a.i - b.i);
+  const TYP = { photo: 'Foto', text: 'Notiz', ink: 'Handschrift' };
+  const prioLabel = (p) => p ? p[0].toUpperCase() + p.slice(1) : '';
 
-  const preview = (b) => {
-    if (b.type === 'text') return esc((b.text || '').slice(0, 140)) + ((b.text || '').length > 140 ? ' …' : '');
-    if (b.type === 'photo') return 'Foto';
-    return 'Handschriftliche Notiz';
+  // Inhalt einer Notiz (Text oder Handschrift als Bild)
+  const noteHTML = (n, alt, px = 900, tag = 'span') => {
+    if (n.type === 'text') return n.text ? `<${tag}>${esc(n.text)}</${tag}>` : '';
+    const u = inkToDataURL(n, px);
+    return u ? `<img class="ink-img" alt="${esc(alt)}" src="${u}">` : '';
   };
 
+  // Maßnahmenliste: jede Foto-Position und jede als Mangel markierte freie Notiz
+  const rows = insp.blocks.map((b, i) => ({ b, i })).filter(x => x.b.type === 'photo' || x.b.prio).map(({ b, i }) => {
+    const notes = b.type === 'photo' ? (b.notes || []) : [b];
+    const fest = notes.map((n, j) => noteHTML(n, `Feststellung #${i + 1}${notes.length > 1 ? '.' + (j + 1) : ''}`, 640)).filter(Boolean).join('');
+    return `<tr>
+      <td>#${i + 1}</td>
+      <td class="thumb">${b.type === 'photo' ? `<img alt="Foto #${i + 1}" data-media="${b.mediaId}">` : '–'}</td>
+      <td><div class="fest">${fest || '<span class="meta">(keine Notiz)</span>'}</div></td>
+      <td>${b.prio ? `<span class="chip ${b.prio}">${prioLabel(b.prio)}</span>` : '–'}</td>
+    </tr>`;
+  }).join('');
+
+  // Protokoll in der erfassten Reihenfolge
   const parts = insp.blocks.map((b, i) => {
-    let c = '';
-    if (b.type === 'photo') c = `<img alt="Foto #${i + 1}" data-media="${b.mediaId}">`;
-    else if (b.type === 'text') c = b.text ? `<p>${esc(b.text)}</p>` : `<p class="meta">(leer)</p>`;
-    else { const u = inkToDataURL(b); c = u ? `<img class="ink-img" alt="Handschrift #${i + 1}" src="${u}">` : `<p class="meta">(leere Handschrift)</p>`; }
-    return `<section class="rep-blk"><div class="rep-blk-head"><strong>#${i + 1}</strong><span>${{ photo: 'Foto', text: 'Notiz', ink: 'Handschrift' }[b.type]}</span>${b.prio ? `<span class="chip ${b.prio}">${PRIO[b.prio]}</span>` : ''}</div>${c}</section>`;
+    const head = `<div class="rep-blk-head"><strong>#${i + 1}</strong><span>${TYP[b.type]}</span>${b.prio ? `<span class="chip ${b.prio}">${PRIO[b.prio]}</span>` : ''}</div>`;
+    if (b.type === 'photo') {
+      const notes = (b.notes || []).map((n, j) => noteHTML(n, `Notiz zu Foto #${i + 1}`, 900, 'p')).filter(Boolean);
+      return `<section class="rep-blk">${head}<div class="rep-pos"><img alt="Foto #${i + 1}" data-media="${b.mediaId}">
+        ${notes.length ? `<div class="rep-pos-notes">${notes.join('')}</div>` : ''}</div></section>`;
+    }
+    const c = noteHTML(b, `Notiz #${i + 1}`, 900, 'p');
+    return `<section class="rep-blk">${head}${c || '<p class="meta">(leer)</p>'}</section>`;
   }).join('');
 
   $('#app').innerHTML = `
@@ -1038,10 +1161,9 @@ async function renderReport() {
         ${insp.bemerkung ? `<div style="grid-column:1/-1"><dt>Bemerkung</dt><dd>${esc(insp.bemerkung)}</dd></div>` : ''}
       </dl>
       <section>
-        <h2 style="font-size:1.35rem;margin-bottom:8px">Mängelübersicht</h2>
-        ${mangel.length ? `<div class="rep-sum"><table><thead><tr><th>Pos.</th><th>Priorität</th><th>Inhalt</th></tr></thead><tbody>
-          ${mangel.map(x => `<tr><td>#${x.i + 1}</td><td><span class="chip ${x.b.prio}">${x.b.prio[0].toUpperCase() + x.b.prio.slice(1)}</span></td><td>${preview(x.b)}</td></tr>`).join('')}
-        </tbody></table></div>` : `<p class="meta">Keine Mängel markiert.</p>`}
+        <h2 style="font-size:1.35rem;margin-bottom:8px">Maßnahmenliste</h2>
+        ${rows ? `<div class="rep-sum"><table><thead><tr><th>Pos.</th><th>Foto</th><th>Feststellung</th><th>Priorität</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          : `<p class="meta">Keine Fotos und keine als Mangel markierten Notizen.</p>`}
       </section>
       <h2 style="font-size:1.35rem">Protokoll</h2>
       ${parts || '<p class="meta">Noch keine Einträge.</p>'}
@@ -1049,7 +1171,11 @@ async function renderReport() {
     </article>
   </main>`;
   for (const img of $$('.report img[data-media]')) {
-    try { const m = await DB.get('media', img.dataset.media); if (m) { const u = URL.createObjectURL(m.blob); urlCache.set(m.id, u); img.src = u; } } catch (e) { /* ignorieren */ }
+    try {
+      let u = urlCache.get(img.dataset.media);
+      if (!u) { const m = await DB.get('media', img.dataset.media); if (m) { u = URL.createObjectURL(m.blob); urlCache.set(m.id, u); } }
+      if (u) img.src = u;
+    } catch (e) { /* ignorieren */ }
   }
 }
 
@@ -1132,29 +1258,37 @@ document.addEventListener('click', async (e) => {
     case 'backToEditor': history.length > 1 && history.state?.view === 'report' ? history.back() : nav('editor', { inspId: S.inspId }); break;
     case 'print': try { window.print(); } catch (x) { toast('Drucken ist hier nicht verfügbar'); } break;
     case 'toggleMeta': S.showMeta = !S.showMeta; render(); break;
-    case 'setInsert': S.insertAt = +el.dataset.at; render(); break;
+    case 'setInsert': S.insertAt = +el.dataset.at; S.target = null; render(); break;
     case 'camera': $('#camIn').click(); break;
     case 'gallery': $('#galIn').click(); break;
-    case 'addInk': { const b = insertBlock(newInk()); S.lastAdded = b.id; render(); break; }
-    case 'addText': { const b = insertBlock(newText()); S.lastAdded = b.id; render(); break; }
+    case 'addInk': { const b = addNote('ink'); S.lastAdded = b.id; render(); break; }
+    case 'addText': { const b = addNote('text'); S.lastAdded = b.id; render(); break; }
+    case 'noteInk': { const b = addNote('ink', id); S.lastAdded = b.id; render(); break; }
+    case 'noteText': { const b = addNote('text', id); S.lastAdded = b.id; render(); break; }
     case 'inkMore': pads.find(p => p.b.id === id)?.grow(); break;
     case 'cyclePrio': {
-      const b = S.insp.blocks.find(x => x.id === id);
+      const b = findBlock(id).b;
       b.prio = PRIO_ORDER[(PRIO_ORDER.indexOf(b.prio || '') + 1) % PRIO_ORDER.length];
       el.className = 'chip chip-btn ' + b.prio; el.textContent = PRIO[b.prio];
       el.closest('.blk').className = el.closest('.blk').className.replace(/prio-\S+/, 'prio-' + (b.prio || 'none'));
       touch(); break;
     }
     case 'moveUp': case 'moveDown': {
-      const bl = S.insp.blocks, i = bl.findIndex(x => x.id === id), j = act === 'moveUp' ? i - 1 : i + 1;
+      const f = findBlock(id); if (!f) break;
+      const bl = f.list, i = f.idx, j = act === 'moveUp' ? i - 1 : i + 1;
       if (j < 0 || j >= bl.length) break;
+      if (!f.parent) { S.target = null; S.insertAt = j + 1; }
       [bl[i], bl[j]] = [bl[j], bl[i]]; touch(); render(); break;
     }
     case 'askDelBlock': S.confirmKey = 'b:' + id; render(); break;
     case 'delBlock': {
-      const bl = S.insp.blocks, i = bl.findIndex(x => x.id === id); const b = bl[i];
-      bl.splice(i, 1);
-      if (S.insertAt != null && S.insertAt > i) S.insertAt--;
+      const f = findBlock(id); if (!f) break;
+      const b = f.b, i = f.idx;
+      f.list.splice(i, 1);
+      if (!f.parent) {
+        if (S.insertAt != null && S.insertAt > i) S.insertAt--;
+        if (S.target === b.id) S.target = null;
+      }
       if (b.type === 'photo') await DB.del('media', b.mediaId);
       S.confirmKey = null; touch(); await flushSave(); render(); break;
     }
@@ -1194,7 +1328,7 @@ document.addEventListener('submit', async (e) => {
 
 document.addEventListener('input', (e) => {
   const t = e.target;
-  if (t.classList.contains('txt')) { const b = S.insp.blocks.find(x => x.id === t.dataset.id); if (b) { b.text = t.value; autoGrow(t); touch(); } }
+  if (t.classList.contains('txt')) { const f = findBlock(t.dataset.id); if (f) { f.b.text = t.value; autoGrow(t); touch(); } }
   else if (t.id === 'inspTitle') { S.insp.title = t.value; touch(); }
   else if (t.dataset && t.dataset.meta && S.insp) {
     S.insp[t.dataset.meta] = t.value; touch();
@@ -1207,24 +1341,28 @@ document.addEventListener('change', (e) => {
   else if (t.id === 'camIn' || t.id === 'galIn') { const files = Array.from(t.files || []); t.value = ''; addPhotos(files); }
   else if (t.id === 'impIn') { const f = t.files && t.files[0]; t.value = ''; if (f) importBackup(f); }
 });
+/* Antippen eines Kastens legt fest, wohin Neues kommt:
+   Foto-Kasten → neue Notizen in diesen Kasten, neue Fotos direkt dahinter.
+   Freie Notiz → Einfügemarke direkt dahinter. */
+function focusBlock(blk) {
+  if (!blk || !S.insp || S.view !== 'editor') return;
+  const i = S.insp.blocks.findIndex(x => x.id === blk.dataset.id); if (i < 0) return;
+  const tgt = blk.dataset.type === 'photo' ? blk.dataset.id : null;
+  if (S.insertAt === i + 1 && S.target === tgt) return;
+  S.insertAt = i + 1; S.target = tgt; markGap();
+}
 document.addEventListener('focusin', (e) => {
-  // Antippen eines Textfelds setzt die Einfügemarke dahinter, damit Fotos dort landen
-  const blk = e.target.closest && e.target.closest('.blk');
-  if (blk && S.insp && e.target.classList.contains('txt')) {
-    const i = S.insp.blocks.findIndex(x => x.id === blk.dataset.id);
-    if (i >= 0 && S.insertAt !== i + 1) { S.insertAt = i + 1; markGap(); }
-  }
+  if (e.target.classList && e.target.classList.contains('txt')) focusBlock(e.target.closest('.blk'));
 });
 document.addEventListener('pointerdown', (e) => {
-  const blk = e.target.closest && e.target.closest('.blk[data-type="ink"]');
-  if (blk && S.insp && e.target.tagName === 'CANVAS') {
-    const i = S.insp.blocks.findIndex(x => x.id === blk.dataset.id);
-    if (i >= 0 && S.insertAt !== i + 1) { S.insertAt = i + 1; markGap(); }
-  }
+  const t = e.target;
+  if (!t.closest || t.closest('button')) return;
+  if (t.tagName === 'CANVAS' || t.closest('.photo-body')) focusBlock(t.closest('.blk'));
 }, true);
 function markGap() {
   const n = S.insp.blocks.length;
-  $$('.gap').forEach(g => { const at = +g.dataset.at; const on = at === S.insertAt; g.classList.toggle('on', on); g.textContent = on ? (at === n ? 'Einfügemarke · Ende' : 'Einfügemarke') : 'Hier einfügen'; });
+  $$('.gap').forEach(g => { const at = +g.dataset.at; const on = at === S.insertAt && !S.target; g.classList.toggle('on', on); g.textContent = on ? (at === n ? 'Einfügemarke · Ende' : 'Einfügemarke') : 'Hier einfügen'; });
+  $$('.blk[data-type="photo"]').forEach(b => b.classList.toggle('target', b.dataset.id === S.target));
 }
 
 /* ======================================================================

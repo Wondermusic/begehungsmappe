@@ -1,0 +1,1248 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Begehungsmappe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0B6B43">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!--
+==============================================================================
+  Begehungsmappe – Offline-App für Arbeitssicherheits- und Brandschutzbegehungen
+==============================================================================
+  Version:   1.0.0
+  Datum:     2026-10-28
+  Plattform: Android-Tablet (Chrome), als PWA installierbar, komplett offline
+
+  ZWECK
+  -----
+  Erfassung von Begehungen vor Ort: Ordner frei benennbar (z. B. pro Kunde),
+  darin beliebig viele Begehungen. Jede Begehung ist ein fortlaufendes
+  Protokoll aus Blöcken: Fotos, Handschrift (S-Pen) und getipptem Text.
+  Fotos landen an der Einfügemarke im Fluss, die zugehörige Notiz folgt
+  direkt danach.
+
+  FUNKTIONEN
+  ----------
+  - Ordner anlegen, umbenennen, löschen
+  - Begehungen mit Titel, Datum, Art (Arbeitssicherheit / Brandschutz /
+    beides), Objekt/Standort, Teilnehmende, Bemerkung
+  - Handschrift-Blöcke: S-Pen schreibt, Finger scrollt (Handballen-
+    Erkennung); optional "Finger zeichnet"; Druckstärke, 3 Farben,
+    2 Strichstärken, Radierer, Rückgängig, Fläche wächst automatisch
+  - Text-Blöcke für Bildschirmtastatur
+  - Fotos per Kamera oder aus der Galerie, automatisch verkleinert
+    (max. 1600 px, JPEG) und im Gerät gespeichert
+  - Einfügemarke zwischen beliebigen Blöcken, Blöcke verschieben/löschen
+  - Mängel-Markierung je Block (Priorität hoch / mittel / gering)
+  - Berichtsansicht mit Mängelübersicht, Drucken / als PDF speichern
+  - Datensicherung: Export/Import als JSON (inkl. Fotos), Teilen über
+    das Android-Teilen-Menü
+  - Speicherung in IndexedDB, Bitte um dauerhaften Speicher
+  - Bildschirm bleibt im Editor an (Wake Lock, falls erlaubt)
+
+  CHANGELOG
+  ---------
+  1.0.0 (2026-10-28)  Erste Version: Ordner, Begehungen, Editor mit Foto/
+                      Handschrift/Text im Fluss, Mängel-Priorität, Bericht,
+                      Sicherung, Offline-Betrieb über Service Worker.
+
+  GEPLANT (Version 2)
+  -------------------
+  - KI-Auswertung der Notizen (Handschrift → Text → Bericht)
+  - Ausgabe auf definiertes Formblatt, Versand per Mail
+==============================================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: tabletbreites Protokollblatt in der Mitte, feste Werkzeugleiste unten, Kopfleiste oben. */
+:root {
+  --bg: #E9EEEB;
+  --surface: #FFFFFF;
+  --surface-2: #F4F7F5;
+  --ink: #17221D;
+  --muted: #56645D;
+  --line: #CCD6D0;
+  --accent: #0B6B43;       /* Rettungszeichen-Grün */
+  --accent-ink: #FFFFFF;
+  --accent-soft: #D7EBE1;
+  --fire: #B5121B;         /* Brandschutzzeichen-Rot */
+  --fire-soft: #F6DADB;
+  --warn: #B87800;
+  --warn-soft: #F7E8C6;
+  --low: #3C6E91;
+  --low-soft: #DCE8F1;
+  --paper: #FCFDFB;
+  --paper-grid: #DCE5E0;
+  --dock: #1E2A24;
+  --dock-ink: #E8EEEA;
+  --dock-muted: #9FB0A7;
+  --shadow: 0 1px 2px rgba(20,35,28,.08), 0 4px 14px rgba(20,35,28,.06);
+  --font-display: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Barlow", Roboto, "Segoe UI", system-ui, sans-serif;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101613; --surface: #18201C; --surface-2: #1F2924; --ink: #E4EBE7; --muted: #9AA9A1; --line: #2F3B35;
+    --accent: #2FAE73; --accent-ink: #08130D; --accent-soft: #173327; --fire: #FF6A72; --fire-soft: #3A1C1E;
+    --warn: #F0B53A; --warn-soft: #3A2F15; --low: #7DB3DA; --low-soft: #1B2B38;
+    --paper: #F1F4F2; --paper-grid: #D3DCD7; --dock: #0B100D; --dock-ink: #E4EBE7; --dock-muted: #8A9A92;
+    --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101613; --surface: #18201C; --surface-2: #1F2924; --ink: #E4EBE7; --muted: #9AA9A1; --line: #2F3B35;
+  --accent: #2FAE73; --accent-ink: #08130D; --accent-soft: #173327; --fire: #FF6A72; --fire-soft: #3A1C1E;
+  --warn: #F0B53A; --warn-soft: #3A2F15; --low: #7DB3DA; --low-soft: #1B2B38;
+  --paper: #F1F4F2; --paper-grid: #D3DCD7; --dock: #0B100D; --dock-ink: #E4EBE7; --dock-muted: #8A9A92;
+  --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { margin: 0; font: 400 16px/1.5 var(--font-body); -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: .01em; line-height: 1.15; margin: 0; text-wrap: balance; }
+svg.i { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* Kopfleiste */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; align-items: center; gap: 10px;
+  min-height: 60px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-block: 8px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.bar .spacer { flex: 1; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 1.45rem; letter-spacing: .02em; }
+.brand-mark { width: 28px; height: 28px; border-radius: 4px; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); }
+.brand-mark svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.crumb { display: flex; flex-direction: column; min-width: 0; }
+.crumb small { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+.crumb strong { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--ink);
+  font-weight: 500; white-space: nowrap;
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { color: var(--fire); border-color: var(--fire); background: transparent; }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.icon { width: 44px; padding: 0; justify-content: center; }
+.btn.sm { min-height: 36px; padding: 0 10px; font-size: .92rem; }
+.btn.icon.sm { width: 36px; }
+
+.wrap {
+  max-width: 1040px; margin: 0 auto;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px;
+}
+.section-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.section-head h1 { font-size: 2rem; }
+.section-head p { margin: 2px 0 0; color: var(--muted); }
+
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.input, select.input, textarea.input {
+  width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); color: var(--ink);
+}
+textarea.input { min-height: 80px; resize: vertical; }
+.inline-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.inline-form .input { flex: 1 1 260px; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.form-grid .wide { grid-column: 1 / -1; }
+.form-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* Ordner */
+.folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.folder {
+  position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 16px 16px 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow);
+}
+.folder::before { content: ""; position: absolute; left: 14px; top: -7px; width: 64px; height: 8px; border-radius: 4px 4px 0 0; background: var(--accent); }
+.folder-open { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.folder-open:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.folder h2 { font-size: 1.35rem; overflow-wrap: anywhere; }
+.folder .meta { color: var(--muted); font-size: .92rem; font-variant-numeric: tabular-nums; }
+.folder .actions { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 10px; }
+
+/* Begehungsliste */
+.list { display: flex; flex-direction: column; gap: 10px; }
+.row {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px;
+}
+.row-main { all: unset; cursor: pointer; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row-main:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.row h3 { font-size: 1.25rem; overflow-wrap: anywhere; }
+.row .meta { color: var(--muted); font-size: .92rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .row { grid-template-columns: auto 1fr; } .row-actions { grid-column: 1 / -1; justify-content: flex-start; } }
+
+/* Art-Zeichen nach Vorbild der Sicherheitszeichen */
+.sign { width: 46px; height: 46px; border-radius: 4px; display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: #fff; letter-spacing: .04em; flex: none; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.sign.as { background: #0B6B43; }
+.sign.bs { background: #B5121B; }
+.sign.kombi { background: linear-gradient(135deg, #0B6B43 0 50%, #B5121B 50% 100%); }
+.sign.sm { width: 30px; height: 30px; font-size: .72rem; border-width: 1.5px; }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border-radius: 15px; font-size: .85rem; font-weight: 600; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); }
+.chip.hoch { background: var(--fire-soft); color: var(--fire); border-color: transparent; }
+.chip.mittel { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.chip.gering { background: var(--low-soft); color: var(--low); border-color: transparent; }
+
+.empty { border: 2px dashed var(--line); border-radius: var(--r); padding: 28px 20px; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.empty strong { color: var(--ink); font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; }
+
+details.backup { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+details.backup summary { padding: 14px 16px; cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 10px; }
+details.backup summary::-webkit-details-marker { display: none; }
+details.backup .body { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 12px; color: var(--muted); }
+details.backup .body .inline-form { align-items: center; }
+.storage { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.foot { color: var(--muted); font-size: .82rem; text-align: center; }
+
+/* Editor */
+.title-input { flex: 1; min-width: 0; border: 1px solid transparent; border-radius: var(--r); background: transparent; padding: 6px 8px; font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; }
+.title-input:hover, .title-input:focus { border-color: var(--line); background: var(--surface-2); }
+.save-state { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+@media (max-width: 640px) { .save-state, .hide-narrow { display: none; } }
+
+.doc {
+  max-width: 980px; margin: 0 auto;
+  padding-block: 16px calc(150px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column;
+}
+.meta-panel { margin-bottom: 8px; }
+.gap { all: unset; display: flex; align-items: center; gap: 10px; height: 26px; cursor: pointer; color: transparent; font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+.gap::before, .gap::after { content: ""; flex: 1; height: 2px; border-radius: 1px; background: transparent; }
+.gap:hover, .gap:focus-visible { color: var(--muted); }
+.gap:hover::before, .gap:hover::after { background: var(--line); }
+.gap.on { color: var(--accent); height: 34px; }
+.gap.on::before, .gap.on::after { background: var(--accent); }
+
+.blk { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.blk.prio-hoch { border-left: 5px solid var(--fire); }
+.blk.prio-mittel { border-left: 5px solid var(--warn); }
+.blk.prio-gering { border-left: 5px solid var(--low); }
+.blk-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; }
+.blk-type { font-family: var(--font-display); font-weight: 600; font-size: 1rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.blk-type svg { width: 18px; height: 18px; }
+.blk-num { font-variant-numeric: tabular-nums; color: var(--ink); }
+.blk-head .spacer { flex: 1; }
+.chip-btn { cursor: pointer; }
+.confirm { display: inline-flex; gap: 6px; align-items: center; font-size: .9rem; color: var(--fire); font-weight: 600; }
+
+.photo-body { background: #0E1411; display: flex; justify-content: center; }
+.photo-body img { display: block; max-width: 100%; max-height: 72vh; object-fit: contain; }
+.photo-missing { color: #9AA9A1; padding: 40px; }
+
+.txt { display: block; width: 100%; border: 0; padding: 14px 16px; min-height: 96px; resize: none; background: var(--surface); color: var(--ink); font-size: 1.05rem; line-height: 1.55; overflow: hidden; }
+.txt:focus { outline: none; background: var(--surface-2); }
+
+.ink-wrap {
+  position: relative; width: 100%;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--paper-grid) 1px, transparent 1px), linear-gradient(90deg, var(--paper-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.ink-wrap canvas { display: block; touch-action: none; }
+.ink-foot { display: flex; justify-content: center; padding: 6px; border-top: 1px dashed var(--line); background: var(--surface-2); }
+.blk.active-ink { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow); }
+
+/* Werkzeugleiste */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: var(--dock); color: var(--dock-ink);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.dock-inner {
+  display: flex; gap: 18px; align-items: center; overflow-x: auto;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  scrollbar-width: none;
+}
+.dock-inner::-webkit-scrollbar { display: none; }
+.dock-group { display: flex; gap: 6px; align-items: center; flex: none; }
+.dock-group + .dock-group { padding-left: 18px; border-left: 1px solid #ffffff22; }
+.dock-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em; color: var(--dock-muted); writing-mode: vertical-rl; transform: rotate(180deg); }
+.tool {
+  all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-width: 64px; height: 58px; padding: 0 8px; border-radius: var(--r); color: var(--dock-ink); font-size: .78rem; font-weight: 500;
+}
+.tool:hover { background: #ffffff14; }
+.tool:focus-visible { outline: 3px solid var(--accent); }
+.tool.on { background: #ffffff22; box-shadow: inset 0 -3px 0 var(--accent); }
+.tool.big { background: var(--accent); color: var(--accent-ink); min-width: 78px; }
+.tool.big:hover { filter: brightness(1.08); background: var(--accent); }
+.swatch { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0; box-shadow: 0 0 0 1px #ffffff40; }
+.swatch.on { border-color: var(--dock-ink); }
+.dock select { background: #ffffff14; border: 1px solid #ffffff30; color: var(--dock-ink); border-radius: var(--r); min-height: 40px; padding: 0 8px; }
+.dock select option { color: #17221D; }
+
+/* Bericht */
+.report { max-width: 860px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); padding: 32px clamp(18px, 4vw, 48px); display: flex; flex-direction: column; gap: 22px; }
+.rep-head { display: flex; gap: 16px; align-items: flex-start; border-bottom: 3px solid var(--ink); padding-bottom: 14px; }
+.rep-head h1 { font-size: 2rem; }
+.rep-head .sub { color: var(--muted); }
+.rep-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 24px; margin: 0; }
+.rep-meta div { min-width: 0; }
+.rep-meta dt { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.rep-meta dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.rep-sum { border: 1px solid var(--line); border-radius: var(--r); overflow-x: auto; }
+.rep-sum table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.rep-sum th, .rep-sum td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.rep-sum th { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.rep-sum tr:last-child td { border-bottom: 0; }
+.rep-blk { display: flex; flex-direction: column; gap: 8px; break-inside: avoid; }
+.rep-blk-head { display: flex; gap: 10px; align-items: center; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rep-blk img { max-width: 100%; border: 1px solid var(--line); border-radius: 3px; }
+.rep-blk .ink-img { background: #FCFDFB; }
+.rep-blk p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rep-foot { border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); font-size: .82rem; }
+
+.toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: var(--r); font-weight: 500; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+.banner { background: var(--warn-soft); color: var(--ink); border: 1px solid var(--warn); border-radius: var(--r); padding: 10px 14px; font-size: .92rem; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .blk.just-added { animation: pop .35s ease-out; }
+  @keyframes pop { from { transform: translateY(6px); box-shadow: 0 0 0 3px var(--accent-soft); } to { transform: none; } }
+}
+
+@media print {
+  body::before, .bar, .dock, .no-print, .toast { display: none !important; }
+  html, body { background: #fff; color: #000; }
+  .wrap { padding: 0; max-width: none; }
+  .report { border: 0; padding: 0; max-width: none; }
+  .rep-blk img { max-height: 120mm; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="camIn" accept="image/*" capture="environment" hidden>
+<input type="file" id="galIn" accept="image/*" multiple hidden>
+<input type="file" id="impIn" accept="application/json,.json" hidden>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ======================================================================
+   Konfiguration
+   ====================================================================== */
+const APP_VERSION = '1.0.0';
+const DB_NAME = 'begehungsmappe';
+const DB_VER = 1;
+const INK_LOGICAL_WIDTH = 1000;   // Handschrift wird in festen logischen Einheiten gespeichert (drehsicher)
+const INK_DEFAULT_HEIGHT = 520;
+const INK_GROW_STEP = 320;
+const PHOTO_MAX_PX = 1600;
+const PHOTO_QUALITY = 0.82;
+const ART = {
+  as:    { label: 'Arbeitssicherheit', short: 'AS' },
+  bs:    { label: 'Brandschutz', short: 'BS' },
+  kombi: { label: 'Arbeitssicherheit + Brandschutz', short: 'AS BS' }
+};
+const PRIO = { '': 'Mangel?', hoch: 'Mangel: hoch', mittel: 'Mangel: mittel', gering: 'Mangel: gering' };
+const PRIO_ORDER = ['', 'hoch', 'mittel', 'gering'];
+const PEN_COLORS = [ ['#16202A', 'Schwarz'], ['#1F4FBF', 'Blau'], ['#C4161C', 'Rot'] ];
+
+/* ======================================================================
+   Icons
+   ====================================================================== */
+const P = {
+  cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  img: '<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="9" r="1.5"/>',
+  pen: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  text: '<path d="M5 6h14M12 6v13M9 19h6"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>',
+  eraser: '<path d="M8 20h12"/><path d="M4 15l9-9 6 6-7 7H8z"/><path d="M9 10l6 6"/>',
+  hand: '<path d="M8 13V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7c0 4-2.5 7-6 7-2.5 0-4-1-5.5-3L3 13.5a1.5 1.5 0 012.3-1.9L8 14"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  up: '<path d="M6 15l6-6 6 6"/>',
+  down: '<path d="M6 9l6 6 6-6"/>',
+  trash: '<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',
+  folder: '<path d="M3 6h6l2 2h10v11H3z"/>',
+  report: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h7"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
+  share: '<path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/>',
+  save: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
+  print: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="1"/><path d="M7 14h10v6H7z"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  check: '<path d="M5 12l4 4 10-10"/>',
+  more: '<path d="M12 5v14"/><path d="M8 15l4 4 4-4"/>'
+};
+const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+
+/* ======================================================================
+   Hilfsfunktionen
+   ====================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const todayISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const fmtDate = (iso) => { if (!iso) return '–'; const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; };
+const fmtStamp = (ts) => new Date(ts).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fileSafe = (s) => String(s || 'export').replace(/[^\wäöüÄÖÜß\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'export';
+
+function toast(msg, ms = 2600) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, ms);
+}
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('bm.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('bm.' + k, JSON.stringify(v)); } catch (e) { /* ignorieren */ } }
+};
+
+/* ======================================================================
+   Datenbank (IndexedDB, Fallback: Arbeitsspeicher)
+   ====================================================================== */
+let DB = null;
+let dbVolatile = false;
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    let r;
+    try { r = indexedDB.open(DB_NAME, DB_VER); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains('folders')) d.createObjectStore('folders', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('inspections')) d.createObjectStore('inspections', { keyPath: 'id' }).createIndex('folderId', 'folderId');
+      if (!d.objectStoreNames.contains('media')) d.createObjectStore('media', { keyPath: 'id' });
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+const wrapReq = (r) => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+
+async function initDB() {
+  try {
+    const db = await idbOpen();
+    const os = (s, m = 'readonly') => db.transaction(s, m).objectStore(s);
+    DB = {
+      all: (s) => wrapReq(os(s).getAll()),
+      get: (s, id) => wrapReq(os(s).get(id)),
+      put: (s, v) => wrapReq(os(s, 'readwrite').put(v)),
+      del: (s, id) => wrapReq(os(s, 'readwrite').delete(id)),
+      byFolder: (fid) => wrapReq(os('inspections').index('folderId').getAll(fid))
+    };
+  } catch (e) {
+    dbVolatile = true;
+    const mem = { folders: new Map(), inspections: new Map(), media: new Map() };
+    DB = {
+      all: async (s) => Array.from(mem[s].values()),
+      get: async (s, id) => mem[s].get(id),
+      put: async (s, v) => { mem[s].set(v.id, v); },
+      del: async (s, id) => { mem[s].delete(id); },
+      byFolder: async (fid) => Array.from(mem.inspections.values()).filter(i => i.folderId === fid)
+    };
+  }
+}
+
+async function requestPersist() {
+  try { if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist(); } catch (e) { /* ignorieren */ }
+}
+
+/* ======================================================================
+   Zustand & Navigation
+   ====================================================================== */
+const S = {
+  view: 'home', folderId: null, inspId: null,
+  insp: null, insertAt: null, dirty: false,
+  pen: store.get('pen', { color: PEN_COLORS[0][0], width: 3, tool: 'pen' }),
+  fingerDraws: store.get('fingerDraws', false),
+  autoNote: store.get('autoNote', 'ink'),
+  showMeta: false, showNewInsp: false, confirmKey: null, renameId: null, lastAdded: null
+};
+let pads = [];
+let activePad = null;
+let penActive = false;
+let urlCache = new Map();
+let wakeLock = null;
+
+function nav(view, params = {}, push = true) {
+  leaveView();
+  Object.assign(S, { confirmKey: null, renameId: null, showNewInsp: false, showMeta: false }, params);
+  S.view = view;
+  if (push) { try { history.pushState({ view, folderId: S.folderId, inspId: S.inspId }, ''); } catch (e) { /* ignorieren */ } }
+  render(true);
+}
+window.addEventListener('popstate', (e) => {
+  const st = e.state || { view: 'home' };
+  leaveView();
+  Object.assign(S, { confirmKey: null, renameId: null, showNewInsp: false, showMeta: false, folderId: st.folderId || null, inspId: st.inspId || null });
+  S.view = st.view || 'home';
+  render(true);
+});
+
+function leaveView() {
+  flushSave();
+  pads.forEach(p => p.destroy()); pads = []; activePad = null;
+  urlCache.forEach(u => URL.revokeObjectURL(u)); urlCache = new Map();
+  if (wakeLock) { try { wakeLock.release(); } catch (e) { /* ignorieren */ } wakeLock = null; }
+}
+
+async function render(scrollTop = false) {
+  const y = window.scrollY;
+  try {
+    if (S.view === 'home') await renderHome();
+    else if (S.view === 'folder') await renderFolder();
+    else if (S.view === 'editor') await renderEditor();
+    else if (S.view === 'report') await renderReport();
+  } catch (err) {
+    console.error(err);
+    $('#app').innerHTML = `<main class="wrap"><div class="banner">Fehler beim Anzeigen: ${esc(err.message)}</div><button class="btn" data-act="home">Zur Startseite</button></main>`;
+  }
+  window.scrollTo(0, scrollTop ? 0 : y);
+}
+
+/* ======================================================================
+   Speichern der aktuellen Begehung
+   ====================================================================== */
+let saveTimer = null;
+function touch() {
+  if (!S.insp) return;
+  S.insp.updated = Date.now(); S.dirty = true;
+  setSaveState('Wird gespeichert …');
+  clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 500);
+}
+async function flushSave() {
+  clearTimeout(saveTimer); saveTimer = null;
+  if (!S.insp || !S.dirty) return;
+  S.dirty = false;
+  try { await DB.put('inspections', S.insp); setSaveState('Gespeichert ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })); }
+  catch (e) { S.dirty = true; setSaveState('Speichern fehlgeschlagen'); toast('Speichern fehlgeschlagen: ' + e.message, 5000); }
+}
+function setSaveState(t) { const el = $('#saveState'); if (el) el.textContent = t; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); else if (S.view === 'editor') acquireWakeLock(); });
+window.addEventListener('pagehide', flushSave);
+
+async function acquireWakeLock() {
+  try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) { /* nicht erlaubt */ }
+}
+
+/* ======================================================================
+   Startseite: Ordner
+   ====================================================================== */
+async function renderHome() {
+  const folders = (await DB.all('folders')).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const insps = await DB.all('inspections');
+  const stats = new Map();
+  insps.forEach(i => { const s = stats.get(i.folderId) || { n: 0, last: '' }; s.n++; if ((i.date || '') > s.last) s.last = i.date; stats.set(i.folderId, s); });
+
+  const cards = folders.map(f => {
+    const st = stats.get(f.id) || { n: 0, last: '' };
+    const renaming = S.renameId === f.id;
+    const confirming = S.confirmKey === 'f:' + f.id;
+    return `<article class="folder">
+      ${renaming ? `<form class="inline-form" data-form="rename" data-id="${f.id}"><input class="input" id="rn-${f.id}" value="${esc(f.name)}" aria-label="Neuer Name"><button class="btn primary sm">${ic('check')}Speichern</button></form>`
+        : `<button class="folder-open" data-act="openFolder" data-id="${f.id}"><h2>${esc(f.name)}</h2>
+          <span class="meta">${st.n === 1 ? '1 Begehung' : st.n + ' Begehungen'}${st.last ? ' · zuletzt ' + fmtDate(st.last) : ''}</span></button>`}
+      <div class="actions">
+        ${confirming ? `<span class="confirm">Ordner mit ${st.n} Begehung${st.n === 1 ? '' : 'en'} löschen?</span><button class="btn danger sm" data-act="delFolder" data-id="${f.id}">Ja, löschen</button><button class="btn sm" data-act="cancel">Nein</button>`
+          : `<button class="btn ghost sm" data-act="renameFolder" data-id="${f.id}">${ic('edit')}Umbenennen</button><button class="btn ghost sm" data-act="askDelFolder" data-id="${f.id}">${ic('trash')}Löschen</button>`}
+      </div>
+    </article>`;
+  }).join('');
+
+  $('#app').innerHTML = `
+  <header class="bar">
+    <div class="brand"><span class="brand-mark">${ic('check')}</span>Begehungsmappe</div>
+    <span class="spacer"></span>
+  </header>
+  <main class="wrap">
+    ${dbVolatile ? `<div class="banner">Der Gerätespeicher ist in dieser Umgebung nicht verfügbar. Daten gehen beim Schließen verloren. Bitte die App über die installierte Version öffnen.</div>` : ''}
+    <div class="section-head">
+      <div><h1>Ordner</h1><p>Ein Ordner pro Kunde oder Objekt. Darin liegen die einzelnen Begehungen.</p></div>
+    </div>
+    <form class="inline-form" data-form="newFolder">
+      <input class="input" id="newFolderName" placeholder="Neuer Ordner, z. B. Müller GmbH – Werk Wuppertal" aria-label="Name des neuen Ordners" autocomplete="off">
+      <button class="btn primary">${ic('plus')}Ordner anlegen</button>
+    </form>
+    ${folders.length ? `<div class="folder-grid">${cards}</div>` : `
+      <div class="empty"><strong>Noch keine Ordner</strong>
+        <span>Lege oben einen Ordner an, zum Beispiel mit dem Kundennamen. Zum Ausprobieren gibt es einen Beispielordner.</span>
+        <button class="btn" data-act="demo">${ic('folder')}Beispielordner anlegen</button></div>`}
+    <details class="backup">
+      <summary>${ic('save')}Datensicherung und Speicher</summary>
+      <div class="body">
+        <span>Alle Daten liegen nur auf diesem Tablet. Sichere sie regelmäßig als Datei, zum Beispiel auf Google Drive oder per Mail an dich selbst.</span>
+        <div class="inline-form">
+          <button class="btn" data-act="exportAll">${ic('save')}Alles sichern</button>
+          ${canShareFiles() ? `<button class="btn" data-act="shareAll">${ic('share')}Sicherung teilen</button>` : ''}
+          <button class="btn" data-act="import">${ic('plus')}Sicherung einlesen</button>
+        </div>
+        <span class="storage" id="storageInfo">Speicher wird ermittelt …</span>
+      </div>
+    </details>
+    <p class="foot">Begehungsmappe ${APP_VERSION} · funktioniert offline</p>
+  </main>`;
+  updateStorageInfo();
+}
+
+async function updateStorageInfo() {
+  const el = $('#storageInfo'); if (!el) return;
+  try {
+    const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+    const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : false;
+    const mb = est ? (est.usage / 1048576).toFixed(1).replace('.', ',') : '?';
+    el.textContent = `Belegt: ${mb} MB · Dauerhafter Speicher: ${persisted ? 'ja' : 'nicht bestätigt (App installieren hilft)'}`;
+  } catch (e) { el.textContent = ''; }
+}
+
+async function createDemo() {
+  const f = { id: uid(), name: 'Beispiel – Musterfirma GmbH', created: Date.now() };
+  await DB.put('folders', f);
+  const insp = newInspection(f.id, { title: 'Halle 2 – Erstbegehung', art: 'kombi', objekt: 'Musterstraße 1, Halle 2', teilnehmer: 'Herr Beispiel (Betriebsleitung)' });
+  insp.blocks.push({ id: uid(), type: 'text', text: 'Beispiel: Rundgang beginnt am Haupteingang. Fluchtwegbeschilderung vorhanden.', prio: '' });
+  insp.blocks.push({ id: uid(), type: 'text', text: 'Beispiel: Feuerlöscher neben Tor 3 durch Paletten verstellt. Zugang freiräumen und Abstellfläche markieren.', prio: 'hoch' });
+  insp.blocks.push({ id: uid(), type: 'ink', strokes: [], h: INK_DEFAULT_HEIGHT, prio: '' });
+  await DB.put('inspections', insp);
+  toast('Beispielordner angelegt');
+  render();
+}
+
+/* ======================================================================
+   Ordneransicht: Begehungen
+   ====================================================================== */
+function newInspection(folderId, o = {}) {
+  return { id: uid(), folderId, title: o.title || 'Begehung', date: o.date || todayISO(), art: o.art || 'kombi', objekt: o.objekt || '', teilnehmer: o.teilnehmer || '', bemerkung: o.bemerkung || '', blocks: [], created: Date.now(), updated: Date.now() };
+}
+const signHTML = (art, sm = false) => `<span class="sign ${art}${sm ? ' sm' : ''}" title="${esc(ART[art]?.label || '')}">${art === 'kombi' ? '' : esc(ART[art]?.short || '')}</span>`;
+
+async function renderFolder() {
+  const f = await DB.get('folders', S.folderId);
+  if (!f) { nav('home', {}, false); return; }
+  const list = (await DB.byFolder(f.id)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.created - a.created);
+
+  const rows = list.map(i => {
+    const nPh = i.blocks.filter(b => b.type === 'photo').length;
+    const nNo = i.blocks.length - nPh;
+    const nM = i.blocks.filter(b => b.prio).length;
+    const confirming = S.confirmKey === 'i:' + i.id;
+    return `<div class="row">
+      ${signHTML(i.art)}
+      <button class="row-main" data-act="openInsp" data-id="${i.id}">
+        <h3>${esc(i.title)}</h3>
+        <span class="meta">${fmtDate(i.date)} · ${esc(ART[i.art]?.label || '')}${i.objekt ? ' · ' + esc(i.objekt) : ''}</span>
+        <span class="meta">${nPh} Foto${nPh === 1 ? '' : 's'} · ${nNo} Notiz${nNo === 1 ? '' : 'en'}${nM ? ' · ' + nM + ' Mängel' : ''}</span>
+      </button>
+      <div class="row-actions">
+        ${confirming ? `<span class="confirm">Begehung löschen?</span><button class="btn danger sm" data-act="delInsp" data-id="${i.id}">Ja</button><button class="btn sm" data-act="cancel">Nein</button>`
+          : `<button class="btn sm" data-act="openReport" data-id="${i.id}">${ic('report')}Bericht</button>
+             <button class="btn sm" data-act="exportInsp" data-id="${i.id}">${ic('save')}Sichern</button>
+             <button class="btn icon sm ghost" data-act="askDelInsp" data-id="${i.id}" aria-label="Begehung löschen">${ic('trash')}</button>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  $('#app').innerHTML = `
+  <header class="bar">
+    <button class="btn icon ghost" data-act="home" aria-label="Zurück zu den Ordnern">${ic('back')}</button>
+    <div class="crumb"><small>Ordner</small><strong>${esc(f.name)}</strong></div>
+    <span class="spacer"></span>
+    <button class="btn primary" data-act="toggleNewInsp">${ic('plus')}<span>Neue Begehung</span></button>
+  </header>
+  <main class="wrap">
+    ${S.showNewInsp ? `
+    <form class="panel" data-form="newInsp">
+      <h2>Neue Begehung</h2>
+      <div class="form-grid">
+        <div class="field wide"><label for="niTitle">Titel</label><input class="input" id="niTitle" required placeholder="z. B. Halle 2 – Jahresbegehung" autocomplete="off"></div>
+        <div class="field"><label for="niDate">Datum</label><input class="input" type="date" id="niDate" value="${todayISO()}"></div>
+        <div class="field"><label for="niArt">Art</label><select class="input" id="niArt">${Object.entries(ART).map(([k, v]) => `<option value="${k}"${k === 'kombi' ? ' selected' : ''}>${v.label}</option>`).join('')}</select></div>
+        <div class="field wide"><label for="niObj">Objekt / Standort</label><input class="input" id="niObj" placeholder="Adresse, Gebäude, Bereich" autocomplete="off"></div>
+        <div class="field wide"><label for="niTeil">Teilnehmende</label><input class="input" id="niTeil" placeholder="Namen und Funktion" autocomplete="off"></div>
+      </div>
+      <div class="form-actions"><button type="button" class="btn" data-act="toggleNewInsp">Abbrechen</button><button class="btn primary">${ic('check')}Anlegen und öffnen</button></div>
+    </form>` : ''}
+    ${list.length ? `<div class="list">${rows}</div>` : (S.showNewInsp ? '' : `<div class="empty"><strong>Noch keine Begehung in diesem Ordner</strong><button class="btn primary" data-act="toggleNewInsp">${ic('plus')}Neue Begehung</button></div>`)}
+  </main>`;
+  if (S.showNewInsp) $('#niTitle')?.focus();
+}
+
+/* ======================================================================
+   Editor
+   ====================================================================== */
+async function renderEditor() {
+  if (!S.insp || S.insp.id !== S.inspId) {
+    S.insp = await DB.get('inspections', S.inspId);
+    S.insertAt = null; S.dirty = false;
+  }
+  const insp = S.insp;
+  if (!insp) { nav('home', {}, false); return; }
+  const folder = await DB.get('folders', insp.folderId);
+  pads.forEach(p => p.destroy()); pads = []; activePad = null;
+  const n = insp.blocks.length;
+  const at = (S.insertAt == null || S.insertAt > n) ? n : S.insertAt;
+
+  let body = '';
+  insp.blocks.forEach((b, i) => { body += gapHTML(i, at, n) + blockHTML(b, i); });
+  body += gapHTML(n, at, n);
+
+  $('#app').innerHTML = `
+  <header class="bar">
+    <button class="btn icon ghost" data-act="backToFolder" aria-label="Zurück zum Ordner">${ic('back')}</button>
+    ${signHTML(insp.art, true)}
+    <input class="title-input" id="inspTitle" value="${esc(insp.title)}" aria-label="Titel der Begehung">
+    <span class="save-state" id="saveState">${dbVolatile ? 'Nur im Arbeitsspeicher' : 'Gespeichert'}</span>
+    <button class="btn ${S.showMeta ? 'primary' : ''}" data-act="toggleMeta" aria-expanded="${S.showMeta}">${ic('info')}<span class="hide-narrow">Angaben</span></button>
+    <button class="btn" data-act="openReport" data-id="${insp.id}">${ic('report')}<span class="hide-narrow">Bericht</span></button>
+  </header>
+  <main class="doc" id="doc">
+    ${S.showMeta ? `
+    <section class="panel meta-panel">
+      <div class="form-grid">
+        <div class="field"><label>Ordner</label><input class="input" value="${esc(folder?.name || '')}" disabled></div>
+        <div class="field"><label for="mDate">Datum</label><input class="input" type="date" id="mDate" data-meta="date" value="${esc(insp.date)}"></div>
+        <div class="field"><label for="mArt">Art</label><select class="input" id="mArt" data-meta="art">${Object.entries(ART).map(([k, v]) => `<option value="${k}"${k === insp.art ? ' selected' : ''}>${v.label}</option>`).join('')}</select></div>
+        <div class="field wide"><label for="mObj">Objekt / Standort</label><input class="input" id="mObj" data-meta="objekt" value="${esc(insp.objekt)}"></div>
+        <div class="field wide"><label for="mTeil">Teilnehmende</label><input class="input" id="mTeil" data-meta="teilnehmer" value="${esc(insp.teilnehmer)}"></div>
+        <div class="field wide"><label for="mBem">Bemerkung</label><textarea class="input" id="mBem" data-meta="bemerkung">${esc(insp.bemerkung)}</textarea></div>
+      </div>
+    </section>` : ''}
+    ${n === 0 ? `<div class="empty"><strong>Noch nichts erfasst</strong><span>Mach ein Foto oder beginne eine Notiz über die Leiste unten. Fotos landen immer an der grünen Einfügemarke, die Notiz dazu direkt dahinter.</span></div>` : ''}
+    ${body}
+  </main>
+  ${dockHTML()}`;
+
+  // Bilder laden
+  for (const b of insp.blocks.filter(b => b.type === 'photo')) loadPhoto(b);
+  // Textfelder anpassen
+  $$('.txt').forEach(autoGrow);
+  // Handschrift-Flächen
+  $$('.blk[data-type="ink"]').forEach(el => {
+    const b = insp.blocks.find(x => x.id === el.dataset.id);
+    const pad = new InkPad(b, $('.ink-wrap', el), el);
+    pads.push(pad);
+  });
+  if (S.lastAdded) {
+    const el = $(`.blk[data-id="${S.lastAdded}"]`);
+    if (el) {
+      el.classList.add('just-added');
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        const ta = $('.txt', el); if (ta) ta.focus({ preventScroll: true });
+        const pad = pads.find(p => p.b.id === S.lastAdded); if (pad) setActivePad(pad);
+      });
+    }
+    S.lastAdded = null;
+  }
+  acquireWakeLock();
+}
+
+function gapHTML(i, at, n) {
+  const on = i === at;
+  return `<button class="gap${on ? ' on' : ''}" data-act="setInsert" data-at="${i}" aria-label="Einfügemarke hierher setzen">${on ? (i === n ? 'Einfügemarke · Ende' : 'Einfügemarke') : 'Hier einfügen'}</button>`;
+}
+
+function blockHTML(b, i) {
+  const typeLabel = { photo: ['img', 'Foto'], ink: ['pen', 'Handschrift'], text: ['text', 'Text'] }[b.type];
+  const confirming = S.confirmKey === 'b:' + b.id;
+  let inner = '';
+  if (b.type === 'photo') inner = `<div class="photo-body"><img alt="Foto ${i + 1}" data-media="${b.mediaId}" hidden><span class="photo-missing">Foto wird geladen …</span></div>`;
+  else if (b.type === 'text') inner = `<textarea class="txt" data-id="${b.id}" placeholder="Notiz tippen …" aria-label="Notiz ${i + 1}">${esc(b.text)}</textarea>`;
+  else inner = `<div class="ink-wrap"><canvas aria-label="Handschrift ${i + 1}"></canvas></div><div class="ink-foot"><button class="btn ghost sm" data-act="inkMore" data-id="${b.id}">${ic('more')}Mehr Platz</button></div>`;
+  return `<article class="blk prio-${b.prio || 'none'}" data-id="${b.id}" data-type="${b.type}">
+    <div class="blk-head">
+      <span class="blk-type">${ic(typeLabel[0])}<span class="blk-num">#${i + 1}</span>${typeLabel[1]}</span>
+      <button class="chip chip-btn ${b.prio || ''}" data-act="cyclePrio" data-id="${b.id}" title="Antippen zum Wechseln">${PRIO[b.prio || '']}</button>
+      <span class="spacer"></span>
+      ${confirming ? `<span class="confirm">Löschen?</span><button class="btn danger sm" data-act="delBlock" data-id="${b.id}">Ja</button><button class="btn sm" data-act="cancel">Nein</button>`
+        : `<button class="btn icon sm ghost" data-act="moveUp" data-id="${b.id}" aria-label="Nach oben"${i === 0 ? ' disabled' : ''}>${ic('up')}</button>
+           <button class="btn icon sm ghost" data-act="moveDown" data-id="${b.id}" aria-label="Nach unten"${i === S.insp.blocks.length - 1 ? ' disabled' : ''}>${ic('down')}</button>
+           <button class="btn icon sm ghost" data-act="askDelBlock" data-id="${b.id}" aria-label="Block löschen">${ic('trash')}</button>`}
+    </div>
+    ${inner}
+  </article>`;
+}
+
+function dockHTML() {
+  const pen = S.pen;
+  return `<nav class="dock" aria-label="Werkzeuge"><div class="dock-inner">
+    <div class="dock-group">
+      <span class="dock-label">Einfügen</span>
+      <button class="tool big" data-act="camera">${ic('cam')}Foto</button>
+      <button class="tool" data-act="gallery">${ic('img')}Galerie</button>
+      <button class="tool" data-act="addInk">${ic('pen')}Handschrift</button>
+      <button class="tool" data-act="addText">${ic('text')}Text</button>
+    </div>
+    <div class="dock-group">
+      <span class="dock-label">Stift</span>
+      ${PEN_COLORS.map(([c, n]) => `<button class="swatch${pen.color === c && pen.tool === 'pen' ? ' on' : ''}" style="background:${c}" data-act="penColor" data-color="${c}" aria-label="Farbe ${n}"></button>`).join('')}
+      <button class="tool${pen.width === 2 && pen.tool === 'pen' ? ' on' : ''}" data-act="penWidth" data-w="2">fein</button>
+      <button class="tool${pen.width === 3.5 && pen.tool === 'pen' ? ' on' : ''}" data-act="penWidth" data-w="3.5">kräftig</button>
+      <button class="tool${pen.tool === 'eraser' ? ' on' : ''}" data-act="eraser">${ic('eraser')}Radierer</button>
+      <button class="tool" data-act="undo">${ic('undo')}Zurück</button>
+      <button class="tool${S.fingerDraws ? ' on' : ''}" data-act="finger" aria-pressed="${S.fingerDraws}">${ic('hand')}${S.fingerDraws ? 'Finger malt' : 'Finger scrollt'}</button>
+    </div>
+    <div class="dock-group">
+      <span class="dock-label">Nach Foto</span>
+      <select id="autoNote" aria-label="Nach einem Foto automatisch anlegen">
+        <option value="ink"${S.autoNote === 'ink' ? ' selected' : ''}>Handschrift anlegen</option>
+        <option value="text"${S.autoNote === 'text' ? ' selected' : ''}>Textnotiz anlegen</option>
+        <option value="none"${S.autoNote === 'none' ? ' selected' : ''}>nichts anlegen</option>
+      </select>
+    </div>
+  </div></nav>`;
+}
+
+async function loadPhoto(b) {
+  const img = $(`img[data-media="${b.mediaId}"]`); if (!img) return;
+  try {
+    let url = urlCache.get(b.mediaId);
+    if (!url) { const m = await DB.get('media', b.mediaId); if (!m) throw new Error('fehlt'); url = URL.createObjectURL(m.blob); urlCache.set(b.mediaId, url); }
+    img.src = url; img.hidden = false; img.nextElementSibling?.remove();
+  } catch (e) { const s = img.nextElementSibling; if (s) s.textContent = 'Foto nicht gefunden'; }
+}
+
+function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.max(96, ta.scrollHeight) + 'px'; }
+
+function insertBlock(b) {
+  const blocks = S.insp.blocks;
+  const at = (S.insertAt == null || S.insertAt > blocks.length) ? blocks.length : S.insertAt;
+  blocks.splice(at, 0, b);
+  S.insertAt = at + 1;
+  touch();
+  return b;
+}
+const newInk = () => ({ id: uid(), type: 'ink', strokes: [], h: INK_DEFAULT_HEIGHT, prio: '' });
+const newText = () => ({ id: uid(), type: 'text', text: '', prio: '' });
+
+async function addPhotos(files) {
+  if (!files || !files.length) return;
+  toast(files.length > 1 ? `${files.length} Fotos werden verarbeitet …` : 'Foto wird verarbeitet …');
+  let note = null;
+  for (const file of files) {
+    try {
+      const { blob, w, h } = await compressImage(file);
+      const m = { id: uid(), blob, w, h, type: blob.type || 'image/jpeg', created: Date.now() };
+      await DB.put('media', m);
+      insertBlock({ id: uid(), type: 'photo', mediaId: m.id, prio: '' });
+    } catch (e) { toast('Foto konnte nicht übernommen werden: ' + e.message, 5000); }
+  }
+  if (S.autoNote === 'ink') note = insertBlock(newInk());
+  else if (S.autoNote === 'text') note = insertBlock(newText());
+  S.lastAdded = note ? note.id : S.insp.blocks[S.insertAt - 1]?.id;
+  await flushSave();
+  requestPersist();
+  render();
+}
+
+async function compressImage(file) {
+  let src, w, h;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); w = src.width; h = src.height; }
+  catch (e) {
+    src = await new Promise((res, rej) => { const u = URL.createObjectURL(file); const im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Bildformat nicht lesbar')); }; im.src = u; });
+    w = src.naturalWidth; h = src.naturalHeight;
+  }
+  const sc = Math.min(1, PHOTO_MAX_PX / Math.max(w, h));
+  const cw = Math.round(w * sc), chh = Math.round(h * sc);
+  const c = document.createElement('canvas'); c.width = cw; c.height = chh;
+  c.getContext('2d').drawImage(src, 0, 0, cw, chh);
+  if (src.close) src.close();
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', PHOTO_QUALITY));
+  return { blob: blob || file, w: cw, h: chh };
+}
+
+/* ======================================================================
+   Handschrift
+   ====================================================================== */
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, ((a[2] ?? .5) + (b[2] ?? .5)) / 2];
+const lw = (s, p) => s.w * (0.45 + Math.min(1, Math.max(0.05, p ?? .5)) * 1.1);
+
+function drawSeg(ctx, s, i) {
+  const pts = s.p; const a = pts[i - 1], b = pts[i];
+  const m1 = i >= 2 ? mid(pts[i - 2], a) : a;
+  const m2 = mid(a, b);
+  ctx.lineWidth = lw(s, a[2]);
+  ctx.beginPath(); ctx.moveTo(m1[0], m1[1]); ctx.quadraticCurveTo(a[0], a[1], m2[0], m2[1]); ctx.stroke();
+}
+function drawStroke(ctx, s) {
+  ctx.strokeStyle = s.c; ctx.fillStyle = s.c; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const pts = s.p; if (!pts.length) return;
+  if (pts.length === 1) { ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], lw(s, pts[0][2]) / 2, 0, Math.PI * 2); ctx.fill(); return; }
+  for (let i = 1; i < pts.length; i++) drawSeg(ctx, s, i);
+  const a = pts[pts.length - 2], b = pts[pts.length - 1], m = mid(a, b);
+  ctx.lineWidth = lw(s, b[2]); ctx.beginPath(); ctx.moveTo(m[0], m[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+}
+
+class InkPad {
+  constructor(block, wrap, card) {
+    this.b = block; this.wrap = wrap; this.card = card;
+    this.c = $('canvas', wrap); this.ctx = this.c.getContext('2d');
+    this.hist = []; this.cur = null; this.pid = null; this.scrollPid = null; this.erasing = false;
+    this.onDown = this.onDown.bind(this); this.onMove = this.onMove.bind(this); this.onUp = this.onUp.bind(this);
+    this.c.addEventListener('pointerdown', this.onDown);
+    this.c.addEventListener('pointermove', this.onMove);
+    this.c.addEventListener('pointerup', this.onUp);
+    this.c.addEventListener('pointercancel', this.onUp);
+    this.c.addEventListener('contextmenu', e => e.preventDefault());
+    this.ro = new ResizeObserver(() => this.layout()); this.ro.observe(wrap);
+    this.layout();
+  }
+  destroy() { this.ro.disconnect(); }
+  layout() {
+    const cw = this.wrap.clientWidth; if (!cw) return;
+    this.scale = cw / INK_LOGICAL_WIDTH;
+    const ch = Math.round(this.b.h * this.scale);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    this.c.style.width = cw + 'px'; this.c.style.height = ch + 'px';
+    this.c.width = Math.round(cw * dpr); this.c.height = Math.round(ch * dpr);
+    this.ctx.setTransform(dpr * this.scale, 0, 0, dpr * this.scale, 0, 0);
+    this.redraw();
+  }
+  redraw() {
+    const ctx = this.ctx; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, this.c.width, this.c.height); ctx.restore();
+    for (const s of this.b.strokes) drawStroke(ctx, s);
+  }
+  pos(e) { const r = this.c.getBoundingClientRect(); return [ +((e.clientX - r.left) / this.scale).toFixed(1), +((e.clientY - r.top) / this.scale).toFixed(1), +(e.pressure || 0.5).toFixed(2) ]; }
+  snapshot() { this.hist.push(JSON.stringify(this.b.strokes)); if (this.hist.length > 30) this.hist.shift(); }
+  undo() { if (!this.hist.length) { toast('Nichts zum Zurücknehmen'); return; } this.b.strokes = JSON.parse(this.hist.pop()); this.redraw(); touch(); }
+  grow(by = INK_GROW_STEP) { this.b.h += by; this.layout(); touch(); }
+  onDown(e) {
+    const draws = e.pointerType === 'pen' || e.pointerType === 'mouse' || (e.pointerType === 'touch' && S.fingerDraws);
+    if (e.pointerType === 'touch' && penActive) { e.preventDefault(); return; } // Handballen ignorieren
+    if (!draws) { // Finger scrollt die Seite
+      this.scrollPid = e.pointerId; this.scrollY = e.clientY;
+      try { this.c.setPointerCapture(e.pointerId); } catch (x) { /* ignorieren */ }
+      return;
+    }
+    if (this.pid != null) return;
+    e.preventDefault();
+    try { this.c.setPointerCapture(e.pointerId); } catch (x) { /* ignorieren */ }
+    this.pid = e.pointerId; if (e.pointerType === 'pen') penActive = true;
+    setActivePad(this);
+    const p = this.pos(e);
+    this.snapshot();
+    if (S.pen.tool === 'eraser') { this.erasing = true; this.eraseAt(p); return; }
+    this.cur = { c: S.pen.color, w: S.pen.width, p: [p] };
+    this.b.strokes.push(this.cur);
+    drawStroke(this.ctx, this.cur);
+  }
+  onMove(e) {
+    if (e.pointerId === this.scrollPid) { const dy = this.scrollY - e.clientY; this.scrollY = e.clientY; window.scrollBy(0, dy); return; }
+    if (e.pointerId !== this.pid) return;
+    e.preventDefault();
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of (evs.length ? evs : [e])) {
+      const p = this.pos(ev);
+      if (this.erasing) { this.eraseAt(p); continue; }
+      const pts = this.cur.p, last = pts[pts.length - 1];
+      if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < 0.8) continue;
+      pts.push(p);
+      this.ctx.strokeStyle = this.cur.c; this.ctx.lineCap = 'round';
+      drawSeg(this.ctx, this.cur, pts.length - 1);
+      if (p[1] > this.b.h - 70) { this.b.h += INK_GROW_STEP; this.layout(); }
+    }
+  }
+  onUp(e) {
+    if (e.pointerId === this.scrollPid) { this.scrollPid = null; return; }
+    if (e.pointerId !== this.pid) return;
+    this.pid = null; penActive = false;
+    if (this.cur) { this.cur = null; this.redraw(); }
+    if (this.erasing) { this.erasing = false; if (this.hist.length && this.hist[this.hist.length - 1] === JSON.stringify(this.b.strokes)) this.hist.pop(); }
+    touch();
+  }
+  eraseAt(p) {
+    const r = 16, r2 = r * r; const before = this.b.strokes.length;
+    this.b.strokes = this.b.strokes.filter(s => !s.p.some(q => (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < r2));
+    if (this.b.strokes.length !== before) this.redraw();
+  }
+}
+function setActivePad(p) {
+  if (activePad === p) return;
+  activePad?.card.classList.remove('active-ink');
+  activePad = p; p.card.classList.add('active-ink');
+}
+
+/* Handschrift als Bild für den Bericht */
+function inkToDataURL(b, px = 900) {
+  const maxY = b.strokes.reduce((m, s) => Math.max(m, ...s.p.map(q => q[1] + s.w * 2)), 0);
+  if (!b.strokes.length) return null;
+  const minY = b.strokes.reduce((m, s) => Math.min(m, ...s.p.map(q => q[1] - s.w * 2)), Infinity);
+  const top = Math.max(0, minY - 20), bottom = Math.min(b.h, maxY + 20);
+  const sc = px / INK_LOGICAL_WIDTH;
+  const c = document.createElement('canvas'); c.width = px; c.height = Math.max(40, Math.round((bottom - top) * sc));
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#FCFDFB'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.setTransform(sc, 0, 0, sc, 0, -top * sc);
+  b.strokes.forEach(s => drawStroke(ctx, s));
+  return c.toDataURL('image/png');
+}
+
+/* ======================================================================
+   Bericht
+   ====================================================================== */
+async function renderReport() {
+  const insp = (S.insp && S.insp.id === S.inspId) ? S.insp : await DB.get('inspections', S.inspId);
+  if (!insp) { nav('home', {}, false); return; }
+  const folder = await DB.get('folders', insp.folderId);
+  const mangel = insp.blocks.map((b, i) => ({ b, i })).filter(x => x.b.prio);
+  const order = { hoch: 0, mittel: 1, gering: 2 };
+  mangel.sort((a, b) => order[a.b.prio] - order[b.b.prio] || a.i - b.i);
+
+  const preview = (b) => {
+    if (b.type === 'text') return esc((b.text || '').slice(0, 140)) + ((b.text || '').length > 140 ? ' …' : '');
+    if (b.type === 'photo') return 'Foto';
+    return 'Handschriftliche Notiz';
+  };
+
+  const parts = insp.blocks.map((b, i) => {
+    let c = '';
+    if (b.type === 'photo') c = `<img alt="Foto #${i + 1}" data-media="${b.mediaId}">`;
+    else if (b.type === 'text') c = b.text ? `<p>${esc(b.text)}</p>` : `<p class="meta">(leer)</p>`;
+    else { const u = inkToDataURL(b); c = u ? `<img class="ink-img" alt="Handschrift #${i + 1}" src="${u}">` : `<p class="meta">(leere Handschrift)</p>`; }
+    return `<section class="rep-blk"><div class="rep-blk-head"><strong>#${i + 1}</strong><span>${{ photo: 'Foto', text: 'Notiz', ink: 'Handschrift' }[b.type]}</span>${b.prio ? `<span class="chip ${b.prio}">${PRIO[b.prio]}</span>` : ''}</div>${c}</section>`;
+  }).join('');
+
+  $('#app').innerHTML = `
+  <header class="bar">
+    <button class="btn icon ghost" data-act="backToEditor" aria-label="Zurück">${ic('back')}</button>
+    <div class="crumb"><small>Bericht</small><strong>${esc(insp.title)}</strong></div>
+    <span class="spacer"></span>
+    <button class="btn" data-act="exportInsp" data-id="${insp.id}">${ic('save')}<span class="hide-narrow">Sichern</span></button>
+    <button class="btn primary" data-act="print">${ic('print')}Drucken / PDF</button>
+  </header>
+  <main class="wrap">
+    <article class="report">
+      <div class="rep-head">${signHTML(insp.art)}<div><h1>${esc(insp.title)}</h1><div class="sub">Begehung · ${esc(ART[insp.art]?.label || '')}</div></div></div>
+      <dl class="rep-meta">
+        <div><dt>Ordner</dt><dd>${esc(folder?.name || '–')}</dd></div>
+        <div><dt>Datum</dt><dd>${fmtDate(insp.date)}</dd></div>
+        <div><dt>Objekt / Standort</dt><dd>${esc(insp.objekt || '–')}</dd></div>
+        <div><dt>Teilnehmende</dt><dd>${esc(insp.teilnehmer || '–')}</dd></div>
+        ${insp.bemerkung ? `<div style="grid-column:1/-1"><dt>Bemerkung</dt><dd>${esc(insp.bemerkung)}</dd></div>` : ''}
+      </dl>
+      <section>
+        <h2 style="font-size:1.35rem;margin-bottom:8px">Mängelübersicht</h2>
+        ${mangel.length ? `<div class="rep-sum"><table><thead><tr><th>Pos.</th><th>Priorität</th><th>Inhalt</th></tr></thead><tbody>
+          ${mangel.map(x => `<tr><td>#${x.i + 1}</td><td><span class="chip ${x.b.prio}">${x.b.prio[0].toUpperCase() + x.b.prio.slice(1)}</span></td><td>${preview(x.b)}</td></tr>`).join('')}
+        </tbody></table></div>` : `<p class="meta">Keine Mängel markiert.</p>`}
+      </section>
+      <h2 style="font-size:1.35rem">Protokoll</h2>
+      ${parts || '<p class="meta">Noch keine Einträge.</p>'}
+      <div class="rep-foot">Erstellt mit Begehungsmappe ${APP_VERSION} · Stand ${fmtStamp(insp.updated)}</div>
+    </article>
+  </main>`;
+  for (const img of $$('.report img[data-media]')) {
+    try { const m = await DB.get('media', img.dataset.media); if (m) { const u = URL.createObjectURL(m.blob); urlCache.set(m.id, u); img.src = u; } } catch (e) { /* ignorieren */ }
+  }
+}
+
+/* ======================================================================
+   Sicherung: Export / Import
+   ====================================================================== */
+const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+async function dataURLToBlob(u) { const r = await fetch(u); return r.blob(); }
+function canShareFiles() { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.json', { type: 'application/json' })] })); } catch (e) { return false; } }
+
+async function buildBackup(inspIds) {
+  await flushSave();
+  const allInsp = await DB.all('inspections');
+  const insps = inspIds ? allInsp.filter(i => inspIds.includes(i.id)) : allInsp;
+  const folderIds = new Set(insps.map(i => i.folderId));
+  const folders = (await DB.all('folders')).filter(f => !inspIds || folderIds.has(f.id));
+  const media = [];
+  for (const i of insps) for (const b of i.blocks) if (b.type === 'photo') {
+    const m = await DB.get('media', b.mediaId);
+    if (m) media.push({ id: m.id, w: m.w, h: m.h, type: m.type, created: m.created, data: await blobToDataURL(m.blob) });
+  }
+  return { format: 'begehungsmappe', version: 1, app: APP_VERSION, exported: new Date().toISOString(), folders, inspections: insps, media };
+}
+async function backupFile(inspId) {
+  const data = await buildBackup(inspId ? [inspId] : null);
+  let name = 'Begehungsmappe_Sicherung_' + todayISO();
+  if (inspId) { const i = data.inspections[0]; name = 'Begehung_' + fileSafe(i.title) + '_' + i.date; }
+  return new File([JSON.stringify(data)], name + '.json', { type: 'application/json' });
+}
+function download(file) {
+  const u = URL.createObjectURL(file); const a = document.createElement('a');
+  a.href = u; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 4000);
+  toast('Sicherung „' + file.name + '“ wird gespeichert');
+}
+async function share(file) {
+  try { await navigator.share({ files: [file], title: file.name }); }
+  catch (e) { if (e.name !== 'AbortError') { toast('Teilen nicht möglich, Datei wird stattdessen gespeichert'); download(file); } }
+}
+async function importBackup(file) {
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.format !== 'begehungsmappe') throw new Error('Das ist keine Sicherung der Begehungsmappe.');
+    for (const m of data.media || []) await DB.put('media', { id: m.id, w: m.w, h: m.h, type: m.type, created: m.created, blob: await dataURLToBlob(m.data) });
+    for (const f of data.folders || []) await DB.put('folders', f);
+    for (const i of data.inspections || []) await DB.put('inspections', i);
+    toast(`Eingelesen: ${(data.folders || []).length} Ordner, ${(data.inspections || []).length} Begehungen`, 4000);
+    requestPersist();
+    render();
+  } catch (e) { toast('Einlesen fehlgeschlagen: ' + e.message, 5000); }
+}
+
+/* ======================================================================
+   Ereignisse
+   ====================================================================== */
+document.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, id = el.dataset.id;
+  switch (act) {
+    case 'home': nav('home'); break;
+    case 'cancel': S.confirmKey = null; render(); break;
+    case 'demo': await createDemo(); break;
+    case 'openFolder': nav('folder', { folderId: id }); break;
+    case 'renameFolder': S.renameId = id; S.confirmKey = null; await render(); $('#rn-' + id)?.select(); break;
+    case 'askDelFolder': S.confirmKey = 'f:' + id; render(); break;
+    case 'delFolder': {
+      for (const i of await DB.byFolder(id)) await deleteInspection(i);
+      await DB.del('folders', id); S.confirmKey = null; toast('Ordner gelöscht'); render(); break;
+    }
+    case 'toggleNewInsp': S.showNewInsp = !S.showNewInsp; render(); break;
+    case 'openInsp': S.insp = null; nav('editor', { inspId: id }); break;
+    case 'openReport': await flushSave(); nav('report', { inspId: id }); break;
+    case 'askDelInsp': S.confirmKey = 'i:' + id; render(); break;
+    case 'delInsp': { const i = await DB.get('inspections', id); if (i) await deleteInspection(i); S.confirmKey = null; toast('Begehung gelöscht'); render(); break; }
+    case 'exportInsp': download(await backupFile(id)); break;
+    case 'exportAll': download(await backupFile(null)); break;
+    case 'shareAll': share(await backupFile(null)); break;
+    case 'import': $('#impIn').click(); break;
+    case 'backToFolder': { const fid = S.insp?.folderId; nav('folder', { folderId: fid }); break; }
+    case 'backToEditor': history.length > 1 && history.state?.view === 'report' ? history.back() : nav('editor', { inspId: S.inspId }); break;
+    case 'print': try { window.print(); } catch (x) { toast('Drucken ist hier nicht verfügbar'); } break;
+    case 'toggleMeta': S.showMeta = !S.showMeta; render(); break;
+    case 'setInsert': S.insertAt = +el.dataset.at; render(); break;
+    case 'camera': $('#camIn').click(); break;
+    case 'gallery': $('#galIn').click(); break;
+    case 'addInk': { const b = insertBlock(newInk()); S.lastAdded = b.id; render(); break; }
+    case 'addText': { const b = insertBlock(newText()); S.lastAdded = b.id; render(); break; }
+    case 'inkMore': pads.find(p => p.b.id === id)?.grow(); break;
+    case 'cyclePrio': {
+      const b = S.insp.blocks.find(x => x.id === id);
+      b.prio = PRIO_ORDER[(PRIO_ORDER.indexOf(b.prio || '') + 1) % PRIO_ORDER.length];
+      el.className = 'chip chip-btn ' + b.prio; el.textContent = PRIO[b.prio];
+      el.closest('.blk').className = el.closest('.blk').className.replace(/prio-\S+/, 'prio-' + (b.prio || 'none'));
+      touch(); break;
+    }
+    case 'moveUp': case 'moveDown': {
+      const bl = S.insp.blocks, i = bl.findIndex(x => x.id === id), j = act === 'moveUp' ? i - 1 : i + 1;
+      if (j < 0 || j >= bl.length) break;
+      [bl[i], bl[j]] = [bl[j], bl[i]]; touch(); render(); break;
+    }
+    case 'askDelBlock': S.confirmKey = 'b:' + id; render(); break;
+    case 'delBlock': {
+      const bl = S.insp.blocks, i = bl.findIndex(x => x.id === id); const b = bl[i];
+      bl.splice(i, 1);
+      if (S.insertAt != null && S.insertAt > i) S.insertAt--;
+      if (b.type === 'photo') await DB.del('media', b.mediaId);
+      S.confirmKey = null; touch(); await flushSave(); render(); break;
+    }
+    case 'penColor': S.pen.color = el.dataset.color; S.pen.tool = 'pen'; store.set('pen', S.pen); refreshDock(); break;
+    case 'penWidth': S.pen.width = +el.dataset.w; S.pen.tool = 'pen'; store.set('pen', S.pen); refreshDock(); break;
+    case 'eraser': S.pen.tool = S.pen.tool === 'eraser' ? 'pen' : 'eraser'; store.set('pen', S.pen); refreshDock(); break;
+    case 'undo': if (activePad) activePad.undo(); else toast('Erst auf eine Handschrift-Fläche schreiben'); break;
+    case 'finger': S.fingerDraws = !S.fingerDraws; store.set('fingerDraws', S.fingerDraws); refreshDock(); toast(S.fingerDraws ? 'Finger zeichnet jetzt auf den Flächen' : 'Finger scrollt, nur der Stift zeichnet'); break;
+  }
+});
+function refreshDock() { const d = $('.dock'); if (d) d.outerHTML = dockHTML(); }
+
+async function deleteInspection(i) {
+  for (const b of i.blocks) if (b.type === 'photo') await DB.del('media', b.mediaId);
+  await DB.del('inspections', i.id);
+  if (S.insp?.id === i.id) S.insp = null;
+}
+
+document.addEventListener('submit', async (e) => {
+  const f = e.target.closest('form[data-form]'); if (!f) return;
+  e.preventDefault();
+  if (f.dataset.form === 'newFolder') {
+    const name = $('#newFolderName').value.trim();
+    if (!name) { toast('Bitte einen Namen für den Ordner eingeben'); return; }
+    await DB.put('folders', { id: uid(), name, created: Date.now() });
+    requestPersist(); toast('Ordner „' + name + '“ angelegt'); render();
+  } else if (f.dataset.form === 'rename') {
+    const name = $('#rn-' + f.dataset.id).value.trim(); if (!name) return;
+    const fo = await DB.get('folders', f.dataset.id); fo.name = name; await DB.put('folders', fo);
+    S.renameId = null; render();
+  } else if (f.dataset.form === 'newInsp') {
+    const insp = newInspection(S.folderId, { title: $('#niTitle').value.trim() || 'Begehung', date: $('#niDate').value || todayISO(), art: $('#niArt').value, objekt: $('#niObj').value.trim(), teilnehmer: $('#niTeil').value.trim() });
+    await DB.put('inspections', insp); requestPersist();
+    S.insp = insp; nav('editor', { inspId: insp.id });
+  }
+});
+
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.classList.contains('txt')) { const b = S.insp.blocks.find(x => x.id === t.dataset.id); if (b) { b.text = t.value; autoGrow(t); touch(); } }
+  else if (t.id === 'inspTitle') { S.insp.title = t.value; touch(); }
+  else if (t.dataset && t.dataset.meta && S.insp) {
+    S.insp[t.dataset.meta] = t.value; touch();
+    if (t.dataset.meta === 'art') { const sg = $('.bar .sign'); if (sg) sg.outerHTML = signHTML(t.value, true); }
+  }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.id === 'autoNote') { S.autoNote = t.value; store.set('autoNote', S.autoNote); }
+  else if (t.id === 'camIn' || t.id === 'galIn') { const files = Array.from(t.files || []); t.value = ''; addPhotos(files); }
+  else if (t.id === 'impIn') { const f = t.files && t.files[0]; t.value = ''; if (f) importBackup(f); }
+});
+document.addEventListener('focusin', (e) => {
+  // Antippen eines Textfelds setzt die Einfügemarke dahinter, damit Fotos dort landen
+  const blk = e.target.closest && e.target.closest('.blk');
+  if (blk && S.insp && e.target.classList.contains('txt')) {
+    const i = S.insp.blocks.findIndex(x => x.id === blk.dataset.id);
+    if (i >= 0 && S.insertAt !== i + 1) { S.insertAt = i + 1; markGap(); }
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  const blk = e.target.closest && e.target.closest('.blk[data-type="ink"]');
+  if (blk && S.insp && e.target.tagName === 'CANVAS') {
+    const i = S.insp.blocks.findIndex(x => x.id === blk.dataset.id);
+    if (i >= 0 && S.insertAt !== i + 1) { S.insertAt = i + 1; markGap(); }
+  }
+}, true);
+function markGap() {
+  const n = S.insp.blocks.length;
+  $$('.gap').forEach(g => { const at = +g.dataset.at; const on = at === S.insertAt; g.classList.toggle('on', on); g.textContent = on ? (at === n ? 'Einfügemarke · Ende' : 'Einfügemarke') : 'Hier einfügen'; });
+}
+
+/* ======================================================================
+   Start
+   ====================================================================== */
+(async function start() {
+  await initDB();
+  try { history.replaceState({ view: 'home' }, ''); } catch (e) { /* ignorieren */ }
+  render(true);
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    try {
+      const hadController = !!navigator.serviceWorker.controller;
+      await navigator.serviceWorker.register('sw.js');
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) toast('Neue Version installiert. Beim nächsten Öffnen aktiv.', 4000); });
+    } catch (e) { /* Vorschau ohne Service Worker */ }
+  }
+})();
+})();
+</script>
+</body>
+</html>

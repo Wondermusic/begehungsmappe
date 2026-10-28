@@ -14,7 +14,7 @@
 ==============================================================================
   Begehungsmappe – Offline-App für Arbeitssicherheits- und Brandschutzbegehungen
 ==============================================================================
-  Version:   1.1.0
+  Version:   1.2.0
   Datum:     2026-10-28
   Plattform: Android-Tablet (Chrome), als PWA installierbar, komplett offline
 
@@ -34,7 +34,9 @@
     beides), Objekt/Standort, Teilnehmende, Bemerkung
   - Handschrift-Blöcke: S-Pen schreibt, Finger scrollt (Handballen-
     Erkennung); optional "Finger zeichnet"; Druckstärke, 3 Farben,
-    2 Strichstärken, Radierer, Rückgängig, Fläche wächst automatisch
+    2 Strichstärken, Radierer, Rückgängig, Fläche wächst automatisch;
+    Stift/Radierer/Zurück direkt an jedem Handschriftfeld; Seitentaste
+    bzw. Radierer-Ende des Stifts radiert, solange sie gedrückt ist
   - Text-Blöcke für Bildschirmtastatur
   - Fotos per Kamera oder aus der Galerie, automatisch verkleinert
     (max. 1600 px, JPEG) und im Gerät gespeichert
@@ -46,7 +48,8 @@
     verschieben/löschen
   - Mängel-Markierung je Position (Priorität hoch / mittel / gering)
   - Berichtsansicht mit Maßnahmenliste (Pos., Foto, Feststellung,
-    Priorität) und Protokoll, Drucken / als PDF speichern
+    Priorität) und Protokoll, Drucken / als PDF speichern; gedruckt
+    werden Kopfdaten und Maßnahmenliste, das Protokoll nur am Bildschirm
   - Datensicherung: Export/Import als JSON (inkl. Fotos), Teilen über
     das Android-Teilen-Menü
   - Speicherung in IndexedDB, Bitte um dauerhaften Speicher
@@ -65,6 +68,13 @@
                       Datenmodell Schema 2; Begehungen aus 1.0.0 werden
                       beim Öffnen übernommen (die Notiz direkt hinter
                       einem Foto wird diesem Foto zugeordnet).
+  1.2.0 (2026-10-28)  Knöpfe Stift / Radierer / Zurück an jedem Hand-
+                      schriftfeld, gemeinsamer Werkzeugstand mit der
+                      Leiste, Radier-Modus durch orangen Rahmen sichtbar.
+                      S-Pen-Seitentaste und Radierer-Ende radieren.
+                      Radierer erfasst auch bei schnellem Wischen alle
+                      Striche (Zwischenpunkte). Protokoll erscheint im
+                      Bericht nur noch am Bildschirm, nicht im Druck.
 
   GEPLANT
   -------
@@ -281,7 +291,13 @@ details.backup .body .inline-form { align-items: center; }
   background-size: 24px 24px;
 }
 .ink-wrap canvas { display: block; touch-action: none; }
-.ink-foot { display: flex; justify-content: center; padding: 6px; border-top: 1px dashed var(--line); background: var(--surface-2); }
+.ink-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; border-top: 1px dashed var(--line); background: var(--surface-2); }
+.ink-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.ink-tool.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ink-tool.on[data-act="toolEraser"] { background: var(--warn); border-color: var(--warn); color: #fff; }
+.ink-wrap.erase-mode { box-shadow: inset 0 0 0 3px var(--warn); }
+.ink-wrap.erase-mode canvas { cursor: cell; }
+.print-hint { font-size: .85rem; color: var(--muted); font-weight: 400; margin-left: 8px; }
 .blk.active-ink, .note.active-ink { box-shadow: inset 0 0 0 2px var(--accent); }
 .blk.target { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
 
@@ -387,7 +403,7 @@ details.backup .body .inline-form { align-items: center; }
 /* ======================================================================
    Konfiguration
    ====================================================================== */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const SCHEMA = 2;                 // 2 = Fotos tragen ihre Notizen in b.notes
 const DB_NAME = 'begehungsmappe';
 const DB_VER = 1;
@@ -832,7 +848,16 @@ function gapHTML(i, at, n) {
 
 function noteBodyHTML(n, label) {
   if (n.type === 'text') return `<textarea class="txt" data-id="${n.id}" placeholder="Notiz tippen …" aria-label="${esc(label)}">${esc(n.text)}</textarea>`;
-  return `<div class="ink-wrap" data-ink="${n.id}"><canvas aria-label="${esc(label)}"></canvas></div><div class="ink-foot"><button class="btn ghost sm" data-act="inkMore" data-id="${n.id}">${ic('more')}Mehr Platz</button></div>`;
+  const er = S.pen.tool === 'eraser';
+  return `<div class="ink-wrap${er ? ' erase-mode' : ''}" data-ink="${n.id}"><canvas aria-label="${esc(label)}"></canvas></div>
+  <div class="ink-foot">
+    <div class="ink-tools" role="group" aria-label="Werkzeug für dieses Feld">
+      <button class="btn sm ink-tool${er ? '' : ' on'}" data-act="toolPen" aria-pressed="${!er}">${ic('pen')}Stift</button>
+      <button class="btn sm ink-tool${er ? ' on' : ''}" data-act="toolEraser" aria-pressed="${er}">${ic('eraser')}Radierer</button>
+      <button class="btn sm" data-act="undoPad" data-id="${n.id}">${ic('undo')}Zurück</button>
+    </div>
+    <button class="btn ghost sm" data-act="inkMore" data-id="${n.id}">${ic('more')}Mehr Platz</button>
+  </div>`;
 }
 function ctrlHTML(id, first, last, what, askText = 'Löschen?') {
   if (S.confirmKey === 'b:' + id) return `<span class="confirm">${askText}</span><button class="btn danger sm" data-act="delBlock" data-id="${id}">Ja</button><button class="btn sm" data-act="cancel">Nein</button>`;
@@ -1046,7 +1071,8 @@ class InkPad {
     setActivePad(this);
     const p = this.pos(e);
     this.snapshot();
-    if (S.pen.tool === 'eraser') { this.erasing = true; this.eraseAt(p); return; }
+    // Radieren: Werkzeug Radierer, gedrückte Seitentaste des Stifts oder Radierer-Ende des Stifts
+    if (S.pen.tool === 'eraser' || penButtonErases(e)) { this.erasing = true; this.lastErase = null; this.eraseAt(p); return; }
     this.cur = { c: S.pen.color, w: S.pen.width, p: [p] };
     this.b.strokes.push(this.cur);
     drawStroke(this.ctx, this.cur);
@@ -1055,6 +1081,11 @@ class InkPad {
     if (e.pointerId === this.scrollPid) { const dy = this.scrollY - e.clientY; this.scrollY = e.clientY; window.scrollBy(0, dy); return; }
     if (e.pointerId !== this.pid) return;
     e.preventDefault();
+    // Seitentaste mitten im Strich gedrückt: angefangenen Strich verwerfen und radieren
+    if (!this.erasing && penButtonErases(e)) {
+      if (this.cur) { this.b.strokes = this.b.strokes.filter(s => s !== this.cur); this.cur = null; this.redraw(); }
+      this.erasing = true; this.lastErase = null;
+    }
     const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
     for (const ev of (evs.length ? evs : [e])) {
       const p = this.pos(ev);
@@ -1076,10 +1107,19 @@ class InkPad {
     touch();
   }
   eraseAt(p) {
-    const r = 16, r2 = r * r; const before = this.b.strokes.length;
-    this.b.strokes = this.b.strokes.filter(s => !s.p.some(q => (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 < r2));
+    // Zwischenpunkte, damit auch schnelles Wischen keine Striche überspringt
+    const a = this.lastErase || p, d = Math.hypot(p[0] - a[0], p[1] - a[1]), steps = Math.max(1, Math.ceil(d / 8));
+    const probes = [];
+    for (let k = 1; k <= steps; k++) probes.push([a[0] + (p[0] - a[0]) * k / steps, a[1] + (p[1] - a[1]) * k / steps]);
+    this.lastErase = p;
+    const r2 = 18 * 18, before = this.b.strokes.length;
+    this.b.strokes = this.b.strokes.filter(s => !s.p.some(q => probes.some(t => (q[0] - t[0]) ** 2 + (q[1] - t[1]) ** 2 < r2)));
     if (this.b.strokes.length !== before) this.redraw();
   }
+}
+/* S-Pen: Seitentaste (buttons-Bit 2) oder Radierer-Ende (button 5 / buttons-Bit 32) */
+function penButtonErases(e) {
+  return e.pointerType === 'pen' && (((e.buttons || 0) & 34) !== 0 || e.button === 5 || e.button === 2);
 }
 function setActivePad(p) {
   if (activePad === p) return;
@@ -1165,8 +1205,10 @@ async function renderReport() {
         ${rows ? `<div class="rep-sum"><table><thead><tr><th>Pos.</th><th>Foto</th><th>Feststellung</th><th>Priorität</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : `<p class="meta">Keine Fotos und keine als Mangel markierten Notizen.</p>`}
       </section>
-      <h2 style="font-size:1.35rem">Protokoll</h2>
-      ${parts || '<p class="meta">Noch keine Einträge.</p>'}
+      <section class="no-print" style="display:flex;flex-direction:column;gap:22px">
+        <h2 style="font-size:1.35rem">Protokoll<span class="print-hint">nur zur Ansicht, wird nicht gedruckt</span></h2>
+        ${parts || '<p class="meta">Noch keine Einträge.</p>'}
+      </section>
       <div class="rep-foot">Erstellt mit Begehungsmappe ${APP_VERSION} · Stand ${fmtStamp(insp.updated)}</div>
     </article>
   </main>`;
@@ -1292,14 +1334,25 @@ document.addEventListener('click', async (e) => {
       if (b.type === 'photo') await DB.del('media', b.mediaId);
       S.confirmKey = null; touch(); await flushSave(); render(); break;
     }
-    case 'penColor': S.pen.color = el.dataset.color; S.pen.tool = 'pen'; store.set('pen', S.pen); refreshDock(); break;
-    case 'penWidth': S.pen.width = +el.dataset.w; S.pen.tool = 'pen'; store.set('pen', S.pen); refreshDock(); break;
-    case 'eraser': S.pen.tool = S.pen.tool === 'eraser' ? 'pen' : 'eraser'; store.set('pen', S.pen); refreshDock(); break;
+    case 'penColor': S.pen.color = el.dataset.color; setTool('pen'); break;
+    case 'penWidth': S.pen.width = +el.dataset.w; setTool('pen'); break;
+    case 'eraser': setTool(S.pen.tool === 'eraser' ? 'pen' : 'eraser'); break;
+    case 'toolPen': setTool('pen'); break;
+    case 'toolEraser': setTool('eraser'); break;
     case 'undo': if (activePad) activePad.undo(); else toast('Erst auf eine Handschrift-Fläche schreiben'); break;
+    case 'undoPad': { const pad = pads.find(p => p.b.id === id); if (pad) { setActivePad(pad); pad.undo(); } break; }
     case 'finger': S.fingerDraws = !S.fingerDraws; store.set('fingerDraws', S.fingerDraws); refreshDock(); toast(S.fingerDraws ? 'Finger zeichnet jetzt auf den Flächen' : 'Finger scrollt, nur der Stift zeichnet'); break;
   }
 });
 function refreshDock() { const d = $('.dock'); if (d) d.outerHTML = dockHTML(); }
+/* Werkzeug umschalten: gilt für alle Handschriftfelder, Leiste und Feld-Knöpfe zeigen denselben Stand */
+function setTool(tool) {
+  S.pen.tool = tool; store.set('pen', S.pen);
+  refreshDock();
+  const er = tool === 'eraser';
+  $$('.ink-tool').forEach(b => { const on = (b.dataset.act === 'toolEraser') === er; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  $$('.ink-wrap').forEach(w => w.classList.toggle('erase-mode', er));
+}
 
 async function deleteInspection(i) {
   for (const b of i.blocks) if (b.type === 'photo') await DB.del('media', b.mediaId);

@@ -2,7 +2,7 @@
 ==============================================================================
   Begehungsmappe – Service Worker
 ==============================================================================
-  Version:   1.1.0
+  Version:   1.2.0
   Datum:     2026-10-28
 
   ZWECK
@@ -29,9 +29,10 @@
   ---------
   1.0.0 (2026-10-28)  Erste Version.
   1.1.0 (2026-10-28)  Cache-Version für App 1.1.0 (Foto-Positionen).
+  1.2.0 (2026-10-28)  Cache-Version für App 1.2.0 (Radierer, Druckumfang).
 ==============================================================================
 */
-const CACHE_VERSION = '1.1.0';
+const CACHE_VERSION = '1.2.0';
 const CACHE = 'begehungsmappe-' + CACHE_VERSION;
 const FONT_CACHE = 'begehungsmappe-fonts';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];

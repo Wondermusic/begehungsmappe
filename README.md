@@ -1,4 +1,4 @@
-# Begehungsmappe 1.2.0
+# Begehungsmappe 1.3.0
 
 Offline-App für Arbeitssicherheits- und Brandschutzbegehungen auf dem Android-Tablet.
 
@@ -38,6 +38,8 @@ Die Daten verlassen das Tablet dabei nicht. Der Server liefert nur die App-Datei
 - **Foto**: öffnet die Kamera. Ein neues Foto kommt immer als eigener Kasten hinter den aktiven Kasten bzw. an die Einfügemarke.
 - **Handschrift**: Der S-Pen schreibt, der Finger scrollt. Aufliegender Handballen wird ignoriert, solange der Stift schreibt. Mit „Finger scrollt / Finger malt“ lässt sich umschalten. Die Fläche wächst beim Schreiben nach unten mit, „Mehr Platz“ verlängert sie von Hand. Unter jedem Feld gibt es **Stift**, **Radierer** und **Zurück**. Im Radier-Modus hat das Feld einen orangen Rahmen; der Radierer entfernt jeweils ganze Striche. Mit gedrückter Seitentaste des S-Pens wird ebenfalls radiert, solange die Taste gedrückt ist.
 - **Text**: normales Textfeld für die Bildschirmtastatur.
+- **Vollbild**: Unter jedem Handschriftfeld holt „Vollbild“ das Feld auf den ganzen Bildschirm, mit Farben, Stift, Radierer, Rückgängig und „Mehr Platz“. „Zurück“ oben links oder die Zurück-Taste von Android führt wieder in die Begehung.
+- **Erledigt**: Jeder Punkt (Foto-Position oder freie Notiz) hat ein Häkchen „Erledigt“. Sind alle Punkte abgehakt, steht die Begehung in der Ordneransicht auf „Erledigt“, sonst auf „Noch offen“ mit Zähler (z. B. „3 von 5“). Auf der Startseite zeigt jede Ordnerkachel, wie viele Begehungen noch offen bzw. erledigt sind.
 - **Mangel?**: Antippen schaltet durch hoch / mittel / gering / kein Mangel. Die Priorität gilt für die ganze Position (Foto samt Notizen).
 - **Bericht**: Kopfdaten, Maßnahmenliste und das ganze Protokoll. Die Maßnahmenliste enthält jede Foto-Position (Foto + zugehörige Feststellung) und jede als Mangel markierte freie Notiz. „Drucken / PDF“ öffnet den Android-Druckdialog, dort „Als PDF speichern“ wählen. Gedruckt werden nur Kopfdaten und Maßnahmenliste, das Protokoll ist nur am Bildschirm zu sehen.
 

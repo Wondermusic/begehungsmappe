@@ -14,8 +14,8 @@
 ==============================================================================
   Begehungsmappe – Offline-App für Arbeitssicherheits- und Brandschutzbegehungen
 ==============================================================================
-  Version:   1.2.0
-  Datum:     2026-10-28
+  Version:   1.3.0
+  Datum:     2026-10-29
   Plattform: Android-Tablet (Chrome), als PWA installierbar, komplett offline
 
   ZWECK
@@ -37,6 +37,13 @@
     2 Strichstärken, Radierer, Rückgängig, Fläche wächst automatisch;
     Stift/Radierer/Zurück direkt an jedem Handschriftfeld; Seitentaste
     bzw. Radierer-Ende des Stifts radiert, solange sie gedrückt ist
+  - Vollbild je Handschriftfeld mit eigener Leiste (Zurück, Farben, Stift,
+    Radierer, Rückgängig, Mehr Platz); Android-Zurück-Taste schließt das
+    Vollbild; echtes Gerätevollbild, sofern Chrome es erlaubt
+  - Erledigt-Häkchen je Punkt (Foto-Position oder freie Notiz); Status
+    der Begehung: Erledigt (alle Punkte abgehakt), Noch offen (mindestens
+    ein Punkt offen), Keine Punkte; Anzeige in Begehungsliste, Editor,
+    Bericht und als Zähler auf den Kundenordnern
   - Text-Blöcke für Bildschirmtastatur
   - Fotos per Kamera oder aus der Galerie, automatisch verkleinert
     (max. 1600 px, JPEG) und im Gerät gespeichert
@@ -75,6 +82,11 @@
                       Radierer erfasst auch bei schnellem Wischen alle
                       Striche (Zwischenpunkte). Protokoll erscheint im
                       Bericht nur noch am Bildschirm, nicht im Druck.
+  1.3.0 (2026-10-29)  Erledigt-Häkchen an jedem Punkt, daraus abgeleiteter
+                      Status „Erledigt“ / „Noch offen“ in der Begehungs-
+                      liste, im Editor-Kopf, im Bericht (Spalte Status)
+                      und als Zähler auf den Ordnerkacheln. Vollbild-Modus
+                      für Handschriftfelder mit Zurück-Knopf.
 
   GEPLANT
   -------
@@ -297,6 +309,30 @@ details.backup .body .inline-form { align-items: center; }
 .ink-tool.on[data-act="toolEraser"] { background: var(--warn); border-color: var(--warn); color: #fff; }
 .ink-wrap.erase-mode { box-shadow: inset 0 0 0 3px var(--warn); }
 .ink-wrap.erase-mode canvas { cursor: cell; }
+/* Erledigt-Status */
+.done-box { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px 0 8px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); font-size: .9rem; font-weight: 600; color: var(--muted); cursor: pointer; user-select: none; }
+.done-box input { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.blk.is-done .done-box { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.blk.is-done .done-box input { accent-color: var(--accent-ink); }
+.blk.is-done .blk-head { background: var(--accent-soft); }
+.chip.ok { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.chip.open { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.chip .n { font-weight: 500; font-variant-numeric: tabular-nums; }
+.row-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.folder .state-line { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Handschrift im Vollbild */
+.ink-full { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: flex; flex-direction: column; }
+.ink-full-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-top: max(8px, env(safe-area-inset-top, 0px)); padding-bottom: 8px;
+  padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px));
+}
+.ink-full-bar .title { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; flex: 1 1 140px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ink-full-bar .swatch { box-shadow: 0 0 0 1px var(--line); }
+.ink-full-bar .swatch.on { border-color: var(--ink); }
+.ink-full-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom, 0px); }
+body.full-open { overflow: hidden; }
 .print-hint { font-size: .85rem; color: var(--muted); font-weight: 400; margin-left: 8px; }
 .blk.active-ink, .note.active-ink { box-shadow: inset 0 0 0 2px var(--accent); }
 .blk.target { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
@@ -372,7 +408,7 @@ details.backup .body .inline-form { align-items: center; }
 .rep-blk p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rep-foot { border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); font-size: .82rem; }
 
-.toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: var(--r); font-weight: 500; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+.toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 40; background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: var(--r); font-weight: 500; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
 .banner { background: var(--warn-soft); color: var(--ink); border: 1px solid var(--warn); border-radius: var(--r); padding: 10px 14px; font-size: .92rem; }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -403,7 +439,7 @@ details.backup .body .inline-form { align-items: center; }
 /* ======================================================================
    Konfiguration
    ====================================================================== */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const SCHEMA = 2;                 // 2 = Fotos tragen ihre Notizen in b.notes
 const DB_NAME = 'begehungsmappe';
 const DB_VER = 1;
@@ -445,7 +481,8 @@ const P = {
   print: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="1"/><path d="M7 14h10v6H7z"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   check: '<path d="M5 12l4 4 10-10"/>',
-  more: '<path d="M12 5v14"/><path d="M8 15l4 4 4-4"/>'
+  more: '<path d="M12 5v14"/><path d="M8 15l4 4 4-4"/>',
+  expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'
 };
 const ic = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
@@ -537,6 +574,8 @@ let activePad = null;
 let penActive = false;
 let urlCache = new Map();
 let wakeLock = null;
+let inkFull = null;        // offenes Vollbild: { pad, ph, ov, fs }
+let ignoreNextPop = false;
 
 function nav(view, params = {}, push = true) {
   leaveView();
@@ -546,6 +585,9 @@ function nav(view, params = {}, push = true) {
   render(true);
 }
 window.addEventListener('popstate', (e) => {
+  // Vollbild der Handschrift: Zurück schließt nur das Vollbild
+  if (ignoreNextPop) { ignoreNextPop = false; return; }
+  if (inkFull) { closeInkFull(true); return; }
   const st = e.state || { view: 'home' };
   leaveView();
   Object.assign(S, { confirmKey: null, renameId: null, showNewInsp: false, showMeta: false, folderId: st.folderId || null, inspId: st.inspId || null });
@@ -554,6 +596,7 @@ window.addEventListener('popstate', (e) => {
 });
 
 function leaveView() {
+  if (inkFull) { inkFull.ov.remove(); document.body.classList.remove('full-open'); inkFull = null; }
   flushSave();
   pads.forEach(p => p.destroy()); pads = []; activePad = null;
   urlCache.forEach(u => URL.revokeObjectURL(u)); urlCache = new Map();
@@ -606,16 +649,23 @@ async function renderHome() {
   const folders = (await DB.all('folders')).sort((a, b) => a.name.localeCompare(b.name, 'de'));
   const insps = await DB.all('inspections');
   const stats = new Map();
-  insps.forEach(i => { const s = stats.get(i.folderId) || { n: 0, last: '' }; s.n++; if ((i.date || '') > s.last) s.last = i.date; stats.set(i.folderId, s); });
+  insps.forEach(i => {
+    normalize(i);
+    const s = stats.get(i.folderId) || { n: 0, last: '', open: 0, done: 0 };
+    s.n++; if ((i.date || '') > s.last) s.last = i.date;
+    const st = inspStatus(i).state; if (st === 'offen') s.open++; else if (st === 'erledigt') s.done++;
+    stats.set(i.folderId, s);
+  });
 
   const cards = folders.map(f => {
-    const st = stats.get(f.id) || { n: 0, last: '' };
+    const st = stats.get(f.id) || { n: 0, last: '', open: 0, done: 0 };
     const renaming = S.renameId === f.id;
     const confirming = S.confirmKey === 'f:' + f.id;
     return `<article class="folder">
       ${renaming ? `<form class="inline-form" data-form="rename" data-id="${f.id}"><input class="input" id="rn-${f.id}" value="${esc(f.name)}" aria-label="Neuer Name"><button class="btn primary sm">${ic('check')}Speichern</button></form>`
         : `<button class="folder-open" data-act="openFolder" data-id="${f.id}"><h2>${esc(f.name)}</h2>
-          <span class="meta">${st.n === 1 ? '1 Begehung' : st.n + ' Begehungen'}${st.last ? ' · zuletzt ' + fmtDate(st.last) : ''}</span></button>`}
+          <span class="meta">${st.n === 1 ? '1 Begehung' : st.n + ' Begehungen'}${st.last ? ' · zuletzt ' + fmtDate(st.last) : ''}</span>
+          ${st.open || st.done ? `<span class="state-line">${st.open ? `<span class="chip open">${st.open} noch offen</span>` : ''}${st.done ? `<span class="chip ok">${st.done} erledigt</span>` : ''}</span>` : ''}</button>`}
       <div class="actions">
         ${confirming ? `<span class="confirm">Ordner mit ${st.n} Begehung${st.n === 1 ? '' : 'en'} löschen?</span><button class="btn danger sm" data-act="delFolder" data-id="${f.id}">Ja, löschen</button><button class="btn sm" data-act="cancel">Nein</button>`
           : `<button class="btn ghost sm" data-act="renameFolder" data-id="${f.id}">${ic('edit')}Umbenennen</button><button class="btn ghost sm" data-act="askDelFolder" data-id="${f.id}">${ic('trash')}Löschen</button>`}
@@ -712,6 +762,18 @@ function normalize(insp) {
   insp.blocks = out; insp.schema = SCHEMA;
   return insp;
 }
+/* Erledigt-Status: jeder Punkt (Foto-Position oder freie Notiz) hat ein Häkchen.
+   Alle abgehakt → erledigt, mindestens einer offen → offen, keine Punkte → leer. */
+function inspStatus(insp) {
+  const total = insp.blocks.length, done = insp.blocks.filter(b => b.done).length;
+  return { total, done, state: total === 0 ? 'leer' : (done === total ? 'erledigt' : 'offen') };
+}
+function statusChip(insp, id = '') {
+  const st = inspStatus(insp);
+  const cls = { erledigt: 'ok', offen: 'open', leer: '' }[st.state];
+  const txt = { erledigt: 'Erledigt', offen: 'Noch offen', leer: 'Keine Punkte' }[st.state];
+  return `<span class="chip ${cls}"${id ? ` id="${id}"` : ''}>${txt}${st.total ? ` <span class="n">· ${st.done} von ${st.total}</span>` : ''}</span>`;
+}
 const countNotes = (insp) => insp.blocks.reduce((n, b) => n + (b.type === 'photo' ? (b.notes || []).length : 1), 0);
 
 function newInspection(folderId, o = {}) {
@@ -733,7 +795,7 @@ async function renderFolder() {
     return `<div class="row">
       ${signHTML(i.art)}
       <button class="row-main" data-act="openInsp" data-id="${i.id}">
-        <h3>${esc(i.title)}</h3>
+        <span class="row-title"><h3>${esc(i.title)}</h3>${statusChip(i)}</span>
         <span class="meta">${fmtDate(i.date)} · ${esc(ART[i.art]?.label || '')}${i.objekt ? ' · ' + esc(i.objekt) : ''}</span>
         <span class="meta">${nPh} Foto${nPh === 1 ? '' : 's'} · ${nNo} Notiz${nNo === 1 ? '' : 'en'}${nM ? ' · ' + nM + ' Mängel' : ''}</span>
       </button>
@@ -796,6 +858,7 @@ async function renderEditor() {
     <button class="btn icon ghost" data-act="backToFolder" aria-label="Zurück zum Ordner">${ic('back')}</button>
     ${signHTML(insp.art, true)}
     <input class="title-input" id="inspTitle" value="${esc(insp.title)}" aria-label="Titel der Begehung">
+    ${statusChip(insp, 'inspState')}
     <span class="save-state" id="saveState">${dbVolatile ? 'Nur im Arbeitsspeicher' : 'Gespeichert'}</span>
     <button class="btn ${S.showMeta ? 'primary' : ''}" data-act="toggleMeta" aria-expanded="${S.showMeta}">${ic('info')}<span class="hide-narrow">Angaben</span></button>
     <button class="btn" data-act="openReport" data-id="${insp.id}">${ic('report')}<span class="hide-narrow">Bericht</span></button>
@@ -856,7 +919,10 @@ function noteBodyHTML(n, label) {
       <button class="btn sm ink-tool${er ? ' on' : ''}" data-act="toolEraser" aria-pressed="${er}">${ic('eraser')}Radierer</button>
       <button class="btn sm" data-act="undoPad" data-id="${n.id}">${ic('undo')}Zurück</button>
     </div>
-    <button class="btn ghost sm" data-act="inkMore" data-id="${n.id}">${ic('more')}Mehr Platz</button>
+    <div class="ink-tools">
+      <button class="btn ghost sm" data-act="inkMore" data-id="${n.id}">${ic('more')}Mehr Platz</button>
+      <button class="btn sm" data-act="inkFull" data-id="${n.id}">${ic('expand')}Vollbild</button>
+    </div>
   </div>`;
 }
 function ctrlHTML(id, first, last, what, askText = 'Löschen?') {
@@ -885,9 +951,10 @@ function blockHTML(b, i) {
     </div>`;
   } else inner = noteBodyHTML(b, `Notiz ${i + 1}`);
   const nNotes = (b.notes || []).length;
-  return `<article class="blk prio-${b.prio || 'none'}${S.target === b.id ? ' target' : ''}" data-id="${b.id}" data-type="${b.type}">
+  return `<article class="blk prio-${b.prio || 'none'}${S.target === b.id ? ' target' : ''}${b.done ? ' is-done' : ''}" data-id="${b.id}" data-type="${b.type}">
     <div class="blk-head">
       <span class="blk-type">${ic(typeLabel[0])}<span class="blk-num">#${i + 1}</span>${typeLabel[1]}</span>
+      <label class="done-box"><input type="checkbox" id="done-${b.id}" data-done="${b.id}"${b.done ? ' checked' : ''}>Erledigt</label>
       <button class="chip chip-btn ${b.prio || ''}" data-act="cyclePrio" data-id="${b.id}" title="Antippen zum Wechseln">${PRIO[b.prio || '']}</button>
       <span class="spacer"></span>
       ${ctrlHTML(b.id, i === 0, last, b.type === 'photo' ? 'Position' : 'Notiz', b.type === 'photo' && nNotes ? `Foto samt ${nNotes} Notiz${nNotes === 1 ? '' : 'en'} löschen?` : 'Löschen?')}
@@ -1078,7 +1145,12 @@ class InkPad {
     drawStroke(this.ctx, this.cur);
   }
   onMove(e) {
-    if (e.pointerId === this.scrollPid) { const dy = this.scrollY - e.clientY; this.scrollY = e.clientY; window.scrollBy(0, dy); return; }
+    if (e.pointerId === this.scrollPid) {
+      const dy = this.scrollY - e.clientY; this.scrollY = e.clientY;
+      const sc = this.wrap.closest('.ink-full-scroll'); // im Vollbild scrollt die Vollbild-Fläche
+      if (sc) sc.scrollBy(0, dy); else window.scrollBy(0, dy);
+      return;
+    }
     if (e.pointerId !== this.pid) return;
     e.preventDefault();
     // Seitentaste mitten im Strich gedrückt: angefangenen Strich verwerfen und radieren
@@ -1121,6 +1193,71 @@ class InkPad {
 function penButtonErases(e) {
   return e.pointerType === 'pen' && (((e.buttons || 0) & 34) !== 0 || e.button === 5 || e.button === 2);
 }
+/* ======================================================================
+   Handschrift im Vollbild
+   Die vorhandene Schreibfläche wird samt Inhalt in eine Vollbild-Ebene
+   verschoben und beim Schließen zurückgesetzt. Die Koordinaten sind
+   breitenunabhängig, dieselbe Handschrift erscheint dort nur größer.
+   ====================================================================== */
+function inkLabel(id) {
+  const f = findBlock(id); if (!f) return 'Handschrift';
+  if (f.parent) { const i = S.insp.blocks.indexOf(f.parent); return `Notiz zu #${i + 1}${f.list.length > 1 ? '.' + (f.idx + 1) : ''}`; }
+  return `#${f.idx + 1} Handschrift`;
+}
+function fullBarHTML(id) {
+  const er = S.pen.tool === 'eraser';
+  return `<button class="btn primary" data-act="closeFull">${ic('back')}Zurück</button>
+    <span class="title">${esc(inkLabel(id))}</span>
+    <div class="ink-tools">
+      ${PEN_COLORS.map(([c, n]) => `<button class="swatch${S.pen.color === c && !er ? ' on' : ''}" style="background:${c}" data-act="penColor" data-color="${c}" aria-label="Farbe ${n}"></button>`).join('')}
+      <button class="btn sm ink-tool${er ? '' : ' on'}" data-act="toolPen" aria-pressed="${!er}">${ic('pen')}Stift</button>
+      <button class="btn sm ink-tool${er ? ' on' : ''}" data-act="toolEraser" aria-pressed="${er}">${ic('eraser')}Radierer</button>
+      <button class="btn sm" data-act="undoPad" data-id="${id}">${ic('undo')}Rückgängig</button>
+      <button class="btn sm" data-act="inkMore" data-id="${id}">${ic('more')}Mehr Platz</button>
+    </div>`;
+}
+function openInkFull(id) {
+  const pad = pads.find(p => p.b.id === id); if (!pad || inkFull) return;
+  const ov = document.createElement('div');
+  ov.className = 'ink-full'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-label', 'Handschrift im Vollbild');
+  ov.innerHTML = `<div class="ink-full-bar">${fullBarHTML(id)}</div><div class="ink-full-scroll"></div>`;
+  const ph = document.createComment('ink-platz');
+  pad.wrap.replaceWith(ph);
+  $('.ink-full-scroll', ov).appendChild(pad.wrap);
+  document.body.appendChild(ov);
+  document.body.classList.add('full-open');
+  inkFull = { pad, ph, ov, fs: false };
+  setActivePad(pad);
+  // Schreibfläche mindestens so hoch wie der Bildschirm machen
+  const fill = () => {
+    if (!inkFull || inkFull.pad !== pad) return;
+    pad.layout();
+    const sc = $('.ink-full-scroll', ov); if (!sc || !pad.scale) return;
+    const need = Math.ceil(sc.clientHeight / pad.scale);
+    if (pad.b.h < need) { pad.b.h = need; pad.layout(); touch(); }
+  };
+  requestAnimationFrame(fill);
+  setTimeout(fill, 400); // nach dem Wechsel ins Gerätevollbild erneut
+  try { history.pushState(Object.assign({}, history.state, { inkFull: true }), ''); } catch (e) { /* ignorieren */ }
+  // Echtes Vollbild des Geräts, falls erlaubt (Statusleiste weg)
+  try {
+    if (document.fullscreenEnabled && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(() => { if (inkFull) inkFull.fs = true; }).catch(() => {});
+    }
+  } catch (e) { /* nicht verfügbar */ }
+}
+function closeInkFull(fromPop = false) {
+  if (!inkFull) return;
+  const { pad, ph, ov, fs } = inkFull; inkFull = null;
+  ph.replaceWith(pad.wrap);
+  ov.remove();
+  document.body.classList.remove('full-open');
+  if (fs && document.fullscreenElement) { try { document.exitFullscreen().catch(() => {}); } catch (e) { /* ignorieren */ } }
+  if (!fromPop) { ignoreNextPop = true; try { history.back(); } catch (e) { ignoreNextPop = false; } }
+  touch();
+  requestAnimationFrame(() => pad.card.scrollIntoView({ block: 'center' }));
+}
+
 function setActivePad(p) {
   if (activePad === p) return;
   activePad?.card.classList.remove('active-ink');
@@ -1167,6 +1304,7 @@ async function renderReport() {
       <td class="thumb">${b.type === 'photo' ? `<img alt="Foto #${i + 1}" data-media="${b.mediaId}">` : '–'}</td>
       <td><div class="fest">${fest || '<span class="meta">(keine Notiz)</span>'}</div></td>
       <td>${b.prio ? `<span class="chip ${b.prio}">${prioLabel(b.prio)}</span>` : '–'}</td>
+      <td>${b.done ? `<span class="chip ok">Erledigt</span>` : `<span class="chip open">Offen</span>`}</td>
     </tr>`;
   }).join('');
 
@@ -1198,11 +1336,12 @@ async function renderReport() {
         <div><dt>Datum</dt><dd>${fmtDate(insp.date)}</dd></div>
         <div><dt>Objekt / Standort</dt><dd>${esc(insp.objekt || '–')}</dd></div>
         <div><dt>Teilnehmende</dt><dd>${esc(insp.teilnehmer || '–')}</dd></div>
+        <div><dt>Status</dt><dd>${statusChip(insp)}</dd></div>
         ${insp.bemerkung ? `<div style="grid-column:1/-1"><dt>Bemerkung</dt><dd>${esc(insp.bemerkung)}</dd></div>` : ''}
       </dl>
       <section>
         <h2 style="font-size:1.35rem;margin-bottom:8px">Maßnahmenliste</h2>
-        ${rows ? `<div class="rep-sum"><table><thead><tr><th>Pos.</th><th>Foto</th><th>Feststellung</th><th>Priorität</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        ${rows ? `<div class="rep-sum"><table><thead><tr><th>Pos.</th><th>Foto</th><th>Feststellung</th><th>Priorität</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : `<p class="meta">Keine Fotos und keine als Mangel markierten Notizen.</p>`}
       </section>
       <section class="no-print" style="display:flex;flex-direction:column;gap:22px">
@@ -1308,6 +1447,8 @@ document.addEventListener('click', async (e) => {
     case 'noteInk': { const b = addNote('ink', id); S.lastAdded = b.id; render(); break; }
     case 'noteText': { const b = addNote('text', id); S.lastAdded = b.id; render(); break; }
     case 'inkMore': pads.find(p => p.b.id === id)?.grow(); break;
+    case 'inkFull': openInkFull(id); break;
+    case 'closeFull': closeInkFull(false); break;
     case 'cyclePrio': {
       const b = findBlock(id).b;
       b.prio = PRIO_ORDER[(PRIO_ORDER.indexOf(b.prio || '') + 1) % PRIO_ORDER.length];
@@ -1352,6 +1493,7 @@ function setTool(tool) {
   const er = tool === 'eraser';
   $$('.ink-tool').forEach(b => { const on = (b.dataset.act === 'toolEraser') === er; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   $$('.ink-wrap').forEach(w => w.classList.toggle('erase-mode', er));
+  $$('.ink-full-bar .swatch').forEach(s => s.classList.toggle('on', !er && s.dataset.color === S.pen.color));
 }
 
 async function deleteInspection(i) {
@@ -1390,7 +1532,16 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
-  if (t.id === 'autoNote') { S.autoNote = t.value; store.set('autoNote', S.autoNote); }
+  if (t.dataset && t.dataset.done && S.insp) {
+    const b = S.insp.blocks.find(x => x.id === t.dataset.done); if (!b) return;
+    b.done = t.checked;
+    if (b.done) b.doneAt = Date.now(); else delete b.doneAt;
+    t.closest('.blk')?.classList.toggle('is-done', b.done);
+    const chip = $('#inspState'); if (chip) chip.outerHTML = statusChip(S.insp, 'inspState');
+    touch();
+    if (inspStatus(S.insp).state === 'erledigt') toast('Alle Punkte erledigt. Die Begehung gilt als erledigt.');
+  }
+  else if (t.id === 'autoNote') { S.autoNote = t.value; store.set('autoNote', S.autoNote); }
   else if (t.id === 'camIn' || t.id === 'galIn') { const files = Array.from(t.files || []); t.value = ''; addPhotos(files); }
   else if (t.id === 'impIn') { const f = t.files && t.files[0]; t.value = ''; if (f) importBackup(f); }
 });
